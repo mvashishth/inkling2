@@ -18,11 +18,13 @@ import {
   Lock,
   Unlock,
   ArrowUp,
+  FileImage,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DrawingCanvas, type DrawingCanvasRef, type AnnotationData } from '@/components/drawing-canvas';
 import { SnapshotItem, type Snapshot } from '@/components/snapshot-item';
 import { NoteItem, type Note } from '@/components/note-item';
+import { ImageItem, type UploadedImage } from '@/components/image-item';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
@@ -74,7 +76,7 @@ interface PdfPoint {
 }
 interface PinupPoint {
     targetId: string;
-    targetType: 'snapshot' | 'note';
+    targetType: 'snapshot' | 'note' | 'image';
     x: number;
     y: number;
 }
@@ -110,6 +112,7 @@ export default function Home() {
   const pdfCanvasRef = React.useRef<DrawingCanvasRef>(null);
   const pinupCanvasRef = React.useRef<DrawingCanvasRef>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const imageInputRef = React.useRef<HTMLInputElement>(null);
   const mainContainerRef = React.useRef<HTMLDivElement>(null);
   const pdfContainerRef = React.useRef<HTMLDivElement>(null);
   const pinupContainerRef = React.useRef<HTMLDivElement>(null);
@@ -128,6 +131,9 @@ export default function Home() {
 
   const [notes, setNotes] = React.useState<Note[]>([]);
   const [selectedNote, setSelectedNote] = React.useState<string | null>(null);
+
+  const [uploadedImages, setUploadedImages] = React.useState<UploadedImage[]>([]);
+  const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
 
   const [inklings, setInklings] = React.useState<Inkling[]>([]);
   const [pendingInkling, setPendingInkling] = React.useState<PdfPoint | null>(null);
@@ -182,6 +188,7 @@ export default function Home() {
         snapshots: snapshots,
         inklings: inklings,
         notes: notes,
+        uploadedImages: uploadedImages,
         fileType: 'inkling-project'
     };
     
@@ -220,6 +227,10 @@ export default function Home() {
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
+
+  const handleUploadImageClick = () => {
+    imageInputRef.current?.click();
+  };
   
   const loadPdf = async (arrayBuffer: ArrayBuffer) => {
     if (!arrayBuffer || arrayBuffer.byteLength === 0) {
@@ -238,6 +249,7 @@ export default function Home() {
     setSnapshots([]);
     setInklings([]);
     setNotes([]);
+    setUploadedImages([]);
     pdfCanvasRef.current?.clear();
     pinupCanvasRef.current?.clear();
 
@@ -304,6 +316,7 @@ export default function Home() {
                   setSnapshots(projectData.snapshots || []);
                   setInklings(projectData.inklings || []);
                   setNotes(projectData.notes || []);
+                  setUploadedImages(projectData.uploadedImages || []);
                   await loadPdf(arrayBuffer.slice(0));
               } else {
                   throw new Error("Invalid project file format.");
@@ -326,6 +339,7 @@ export default function Home() {
         setSnapshots([]);
         setInklings([]);
         setNotes([]);
+        setUploadedImages([]);
         await loadPdf(arrayBuffer.slice(0));
     } else {
         toast({
@@ -338,6 +352,47 @@ export default function Home() {
     if (e.target) e.target.value = '';
   };
   
+  const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+        toast({
+            title: "Unsupported File Type",
+            description: "Please upload a PNG or JPG/JPEG file.",
+            variant: "destructive",
+        });
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const imageDataUrl = event.target?.result as string;
+        const img = new Image();
+        img.onload = () => {
+            const maxWidth = 300;
+            const scale = Math.min(1, maxWidth / img.width);
+            const newImage: UploadedImage = {
+                id: `image_${Date.now()}`,
+                imageDataUrl,
+                x: 50,
+                y: 50,
+                width: img.width * scale,
+                height: img.height * scale,
+            };
+            setUploadedImages(prev => [...prev, newImage]);
+            toast({
+                title: "Image Added",
+                description: "The image has been added to your pinup board.",
+            });
+        };
+        img.src = imageDataUrl;
+    };
+    reader.readAsDataURL(file);
+
+    if (e.target) e.target.value = '';
+  };
+
   const handleClear = () => {
     setIsClearConfirmOpen(true);
   };
@@ -354,6 +409,7 @@ export default function Home() {
     pinupCanvasRef.current?.clear();
     setSnapshots([]);
     setNotes([]);
+    setUploadedImages([]);
     setInklings([]);
 
     setIsClearConfirmOpen(false);
@@ -406,6 +462,15 @@ export default function Home() {
     setInklings(inklings => inklings.filter(i => !(i.pinupPoint.targetType === 'note' && i.pinupPoint.targetId === id)));
   }, []);
 
+  const updateUploadedImage = React.useCallback((id: string, newProps: Partial<Omit<UploadedImage, 'id'>>) => {
+    setUploadedImages(images => images.map(i => i.id === id ? {...i, ...newProps} : i));
+  }, []);
+
+  const deleteUploadedImage = React.useCallback((id: string) => {
+    setUploadedImages(images => images.filter(i => i.id !== id));
+    setInklings(inklings => inklings.filter(i => !(i.pinupPoint.targetType === 'image' && i.pinupPoint.targetId === id)));
+  }, []);
+
 
   const handleSnapshotClick = React.useCallback((snapshot: Snapshot, e: React.MouseEvent<HTMLDivElement>) => {
     if (pendingInkling) {
@@ -432,6 +497,7 @@ export default function Home() {
     
     setSelectedSnapshot(snapshot.id);
     setSelectedNote(null);
+    setSelectedImage(null);
     const scrollContainer = pdfCanvasRef.current?.getScrollContainer();
     const pageElement = pdfCanvasRef.current?.getPageElement(snapshot.sourcePage);
     if (pageElement && scrollContainer) {
@@ -480,6 +546,35 @@ export default function Home() {
     
     setSelectedNote(note.id);
     setSelectedSnapshot(null);
+    setSelectedImage(null);
+  }, [pendingInkling, toast]);
+
+  const handleImageClick = React.useCallback((image: UploadedImage, e: React.MouseEvent<HTMLDivElement>) => {
+    if (pendingInkling) {
+        const target = e.currentTarget;
+        const rect = target.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const newInkling: Inkling = {
+            id: `inkling_${Date.now()}`,
+            pdfPoint: pendingInkling,
+            pinupPoint: { targetId: image.id, targetType: 'image', x, y },
+        };
+        setInklings(prev => [...prev, newInkling]);
+        setPendingInkling(null);
+        setTool(null);
+        toast({
+            title: "Link Created!",
+            description: "A new link between the PDF and the image has been created.",
+        });
+        e.stopPropagation();
+        return;
+    }
+    
+    setSelectedImage(image.id);
+    setSelectedSnapshot(null);
+    setSelectedNote(null);
   }, [pendingInkling, toast]);
 
   const handleCanvasClick = (pageIndex: number, point: { x: number; y: number; }) => {
@@ -487,7 +582,7 @@ export default function Home() {
     setPendingInkling({ pageIndex, x: point.x, y: point.y });
     toast({
         title: "Link Started",
-        description: "Click on a snapshot or a note's header in the pinup board to complete the link.",
+        description: "Click on a snapshot, a note's header, or an image in the pinup board to complete the link.",
     });
   };
   
@@ -512,7 +607,9 @@ export default function Home() {
       const { targetId, targetType, y } = inkling.pinupPoint;
       const selector = targetType === 'snapshot' 
         ? `[data-snapshot-id="${targetId}"]` 
-        : `[data-note-id="${targetId}"]`;
+        : targetType === 'note'
+        ? `[data-note-id="${targetId}"]`
+        : `[data-image-id="${targetId}"]`;
       
       const pinupElement = pinupContainerRef.current?.querySelector(selector) as HTMLDivElement;
       const pinupScrollContainer = pinupScrollContainerRef.current;
@@ -530,9 +627,15 @@ export default function Home() {
         if (targetType === 'snapshot') {
           setSelectedSnapshot(targetId);
           setSelectedNote(null);
-        } else {
+          setSelectedImage(null);
+        } else if (targetType === 'note') {
           setSelectedNote(targetId);
           setSelectedSnapshot(null);
+          setSelectedImage(null);
+        } else if (targetType === 'image') {
+          setSelectedImage(targetId);
+          setSelectedSnapshot(null);
+          setSelectedNote(null);
         }
       }
     }
@@ -566,7 +669,9 @@ export default function Home() {
             const { targetId, targetType, x, y } = inkling.pinupPoint;
             const selector = targetType === 'snapshot'
                 ? `[data-snapshot-id="${targetId}"]`
-                : `[data-note-id="${targetId}"]`;
+                : targetType === 'note' 
+                ? `[data-note-id="${targetId}"]`
+                : `[data-image-id="${targetId}"]`;
             const pinupElement = pinupContainerRef.current?.querySelector(selector) as HTMLDivElement;
             
             if (pdfPageElement && pinupElement) {
@@ -614,7 +719,7 @@ export default function Home() {
       pdfView?.removeEventListener('scroll', throttledUpdate);
       pinupView?.removeEventListener('scroll', throttledUpdate);
     };
-  }, [inklings, snapshots, pageImages, pendingInkling, notes, viewerWidth]);
+  }, [inklings, snapshots, pageImages, pendingInkling, notes, uploadedImages, viewerWidth]);
 
   const sliderValue = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
   const sliderMin = tool === 'draw' ? 1 : tool === 'highlight' ? 10 : 2;
@@ -761,6 +866,14 @@ export default function Home() {
                         </TooltipTrigger>
                         <TooltipContent side="bottom"><p>Open PDF or Project</p></TooltipContent>
                     </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={handleUploadImageClick} className="h-10 w-10 rounded-lg">
+                                <FileImage className="h-5 w-5" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom"><p>Add Image to Pinup</p></TooltipContent>
+                    </Tooltip>
                      <Tooltip>
                         <TooltipTrigger asChild>
                             <Button variant="ghost" size="icon" onClick={handleSave} className="h-10 w-10 rounded-lg" disabled={!originalPdfFile}>
@@ -848,6 +961,7 @@ export default function Home() {
               setActiveCanvas('pdf');
               setSelectedSnapshot(null);
               setSelectedNote(null);
+              setSelectedImage(null);
             }}
           >
             <div 
@@ -866,6 +980,13 @@ export default function Home() {
                 onChange={handleFileSelect}
                 accept="application/pdf,application/json"
                 className="hidden"
+              />
+              <input
+                  type="file"
+                  ref={imageInputRef}
+                  onChange={handleImageFileSelect}
+                  accept="image/png,image/jpeg"
+                  className="hidden"
               />
               <DrawingCanvas
                 ref={pdfCanvasRef}
@@ -962,6 +1083,7 @@ export default function Home() {
                     setActiveCanvas('pinup');
                     setSelectedSnapshot(null);
                     setSelectedNote(null);
+                    setSelectedImage(null);
                   }
                 }}
               >
@@ -997,6 +1119,7 @@ export default function Home() {
                         onSelect={() => {
                             setSelectedSnapshot(snapshot.id);
                             setSelectedNote(null);
+                            setSelectedImage(null);
                         }}
                         containerRef={pinupContainerRef}
                       />
@@ -1009,6 +1132,22 @@ export default function Home() {
                         onDelete={deleteNote}
                         onClick={(e) => handleNoteClick(note, e)}
                         isSelected={selectedNote === note.id}
+                        containerRef={pinupContainerRef}
+                      />
+                    ))}
+                    {uploadedImages.map(image => (
+                      <ImageItem 
+                        key={image.id}
+                        image={image}
+                        onUpdate={updateUploadedImage}
+                        onDelete={deleteUploadedImage}
+                        onClick={(e) => handleImageClick(image, e)}
+                        isSelected={selectedImage === image.id}
+                        onSelect={() => {
+                            setSelectedImage(image.id);
+                            setSelectedSnapshot(null);
+                            setSelectedNote(null);
+                        }}
                         containerRef={pinupContainerRef}
                       />
                     ))}
