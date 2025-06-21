@@ -16,12 +16,23 @@ interface Point {
   y: number;
 }
 
+interface SerializableImageData {
+  width: number;
+  height: number;
+  data: number[];
+}
+export interface AnnotationData {
+  history: [number, SerializableImageData[]][];
+  historyIndex: [number, number][];
+}
+
 export interface DrawingCanvasRef {
   exportAsDataURL: () => { dataUrl: string | undefined; pageNum: number } | undefined;
   clear: () => void;
   undo: () => void;
   redo: () => void;
   initializePages: (numPages: number) => void;
+  getAnnotationData: () => AnnotationData | undefined;
 }
 
 interface DrawingCanvasProps {
@@ -33,10 +44,11 @@ interface DrawingCanvasProps {
   highlighterSize: number;
   highlighterColor: string;
   onHistoryChange: (canUndo: boolean, canRedo: boolean) => void;
+  initialAnnotations: AnnotationData | null;
 }
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange }, ref) => {
+  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange, initialAnnotations }, ref) => {
     const isDrawingRef = useRef(false);
     const hasMovedRef = useRef(false);
 
@@ -96,6 +108,29 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         context.putImageData(history[historyIndex], 0, 0);
     }, []);
 
+    useEffect(() => {
+      if (initialAnnotations && pages.length > 0) {
+        const newHistoryMap = new Map<number, ImageData[]>();
+        const newHistoryIndexMap = new Map<number, number>();
+
+        for (const [pageIndex, history] of initialAnnotations.history) {
+            const newPageHistory = history.map(s_img => {
+                return new ImageData(new Uint8ClampedArray(s_img.data), s_img.width, s_img.height);
+            });
+            newHistoryMap.set(pageIndex, newPageHistory);
+        }
+        
+        for (const [pageIndex, index] of initialAnnotations.historyIndex) {
+            newHistoryIndexMap.set(pageIndex, index);
+        }
+
+        pageHistoryRef.current = newHistoryMap;
+        pageHistoryIndexRef.current = newHistoryIndexMap;
+
+        // The Page component's useEffect will handle calling restoreState once the canvas is sized.
+      }
+    }, [initialAnnotations, pages.length, restoreState]);
+
     const getPoint = (e: React.MouseEvent | React.TouchEvent, canvasIndex: number): Point => {
       const canvas = drawingCanvasRefs.current[canvasIndex];
       if (!canvas) return { x: 0, y: 0 };
@@ -113,9 +148,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       
       lastActivePageRef.current = pageIndex;
       updateHistoryButtons(pageIndex);
-
-      hasMovedRef.current = false;
+      
       isDrawingRef.current = true;
+      hasMovedRef.current = false;
       
       const point = getPoint(e, pageIndex);
       lastPointRef.current = point;
@@ -288,6 +323,26 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
           updateHistoryButtons(page);
         }
       },
+      getAnnotationData: () => {
+        if (pageHistoryRef.current.size === 0) return undefined;
+
+        const serializedHistory: [number, SerializableImageData[]][] = [];
+        for (const [pageIndex, history] of pageHistoryRef.current.entries()) {
+            const pageHistory = history.map(imageData => ({
+                width: imageData.width,
+                height: imageData.height,
+                data: Array.from(imageData.data),
+            }));
+            serializedHistory.push([pageIndex, pageHistory]);
+        }
+
+        const serializedHistoryIndex = Array.from(pageHistoryIndexRef.current.entries());
+
+        return {
+            history: serializedHistory,
+            historyIndex: serializedHistoryIndex,
+        };
+      },
     }));
 
     const Page = ({ pageDataUrl, index }: { pageDataUrl: string, index: number }) => {
@@ -315,7 +370,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                   // Restore drawing if it exists
                   const history = pageHistoryRef.current.get(index) ?? [];
                   const historyIdx = pageHistoryIndexRef.current.get(index) ?? -1;
-                  if (history[historyIdx]) {
+
+                  if (history.length > 0 && history[historyIdx]) {
                     restoreState(index, historyIdx);
                   } else {
                     saveState(index);

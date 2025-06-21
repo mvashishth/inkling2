@@ -10,9 +10,10 @@ import {
   Trash2,
   Highlighter,
   FileUp,
+  Save,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
-import { DrawingCanvas, type DrawingCanvasRef } from '@/components/drawing-canvas';
+import { DrawingCanvas, type DrawingCanvasRef, type AnnotationData } from '@/components/drawing-canvas';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
@@ -37,6 +38,16 @@ type Tool = 'draw' | 'erase' | 'highlight';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
 const DEFAULT_HIGHLIGHTER_COLOR = '#EAB308'; // A bright yellow
 
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+}
+
 export default function Home() {
   const [tool, setTool] = React.useState<Tool | null>(null);
   const [penSize, setPenSize] = React.useState(5);
@@ -51,9 +62,11 @@ export default function Home() {
   
   const [isPdfLoading, setIsPdfLoading] = React.useState(false);
   const [pdfLoadProgress, setPdfLoadProgress] = React.useState(0);
+  const [originalPdfFile, setOriginalPdfFile] = React.useState<ArrayBuffer | null>(null);
+  const [annotationDataToLoad, setAnnotationDataToLoad] = React.useState<AnnotationData | null>(null);
 
   const canvasRef = React.useRef<DrawingCanvasRef>(null);
-  const pdfInputRef = React.useRef<HTMLInputElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const handleToolClick = (selectedTool: Tool) => {
@@ -72,6 +85,37 @@ export default function Home() {
     }
   };
 
+  const handleSave = () => {
+    if (!originalPdfFile) {
+        toast({
+            title: "Cannot Save",
+            description: "Please upload a PDF before saving.",
+            variant: "destructive",
+        });
+        return;
+    }
+    const annotationData = canvasRef.current?.getAnnotationData();
+    if (!annotationData) return;
+    
+    const pdfDataBase64 = arrayBufferToBase64(originalPdfFile);
+
+    const projectData = {
+        pdfDataBase64: pdfDataBase64,
+        annotations: annotationData,
+        fileType: 'inkling-project'
+    };
+    
+    const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'annotated-project.json';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleHistoryChange = (canUndo: boolean, canRedo: boolean) => {
     setCanUndo(canUndo);
     setCanRedo(canRedo);
@@ -87,23 +131,17 @@ export default function Home() {
     }
   };
 
-  const handlePdfUploadClick = () => {
-    pdfInputRef.current?.click();
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
   };
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  
+  const loadPdf = async (arrayBuffer: ArrayBuffer) => {
     setIsPdfLoading(true);
     setPdfLoadProgress(0);
     setPageImages([]);
     canvasRef.current?.clear();
 
-
     try {
-      const arrayBuffer = await file.arrayBuffer();
-
       const loadingTask = pdfjsLib.getDocument(arrayBuffer);
       loadingTask.onProgress = (progressData) => {
         // This progress is for download, we'll manually update for rendering
@@ -118,7 +156,7 @@ export default function Home() {
       for (let i = 1; i <= numPages; i++) {
         setPdfLoadProgress(Math.round((i / numPages) * 100));
         const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 2.0 }); // Render at high resolution for quality
+        const viewport = page.getViewport({ scale: 2.0 }); 
 
         const canvas = document.createElement('canvas');
         canvas.width = viewport.width;
@@ -140,14 +178,66 @@ export default function Home() {
       });
       setPageImages([]);
     } finally {
-      if (e.target) e.target.value = '';
       setIsPdfLoading(false);
     }
+  }
+
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.type === 'application/json') {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+          try {
+              const projectData = JSON.parse(event.target?.result as string);
+              if (projectData.fileType === 'inkling-project' && projectData.pdfDataBase64 && projectData.annotations) {
+                  const byteCharacters = window.atob(projectData.pdfDataBase64);
+                  const byteNumbers = new Array(byteCharacters.length);
+                  for (let i = 0; i < byteCharacters.length; i++) {
+                      byteNumbers[i] = byteCharacters.charCodeAt(i);
+                  }
+                  const byteArray = new Uint8Array(byteNumbers);
+                  const arrayBuffer = byteArray.buffer;
+                  
+                  setOriginalPdfFile(arrayBuffer);
+                  setAnnotationDataToLoad(projectData.annotations);
+                  await loadPdf(arrayBuffer);
+              } else {
+                  throw new Error("Invalid project file format.");
+              }
+          } catch (error) {
+              console.error('Failed to load project file:', error);
+              toast({
+                  title: "Error loading project",
+                  description: "The selected file is not a valid project file.",
+                  variant: "destructive",
+              });
+          }
+      };
+      reader.readAsText(file);
+    } else if (file.type === 'application/pdf') {
+        const arrayBuffer = await file.arrayBuffer();
+        setOriginalPdfFile(arrayBuffer);
+        setAnnotationDataToLoad(null);
+        await loadPdf(arrayBuffer);
+    } else {
+        toast({
+            title: "Unsupported File Type",
+            description: "Please upload a PDF or a saved .json project file.",
+            variant: "destructive",
+        });
+    }
+
+    if (e.target) e.target.value = '';
   };
   
   const handleClear = () => {
     canvasRef.current?.clear();
     setPageImages([]);
+    setOriginalPdfFile(null);
+    setAnnotationDataToLoad(null);
   };
 
   const sliderValue = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
@@ -278,11 +368,19 @@ export default function Home() {
                 <div className="flex items-center gap-1">
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={handlePdfUploadClick} className="h-10 w-10 rounded-lg" disabled={isPdfLoading}>
+                            <Button variant="ghost" size="icon" onClick={handleUploadClick} className="h-10 w-10 rounded-lg" disabled={isPdfLoading}>
                             <FileUp className="h-5 w-5" />
                             </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="bottom"><p>Upload PDF</p></TooltipContent>
+                        <TooltipContent side="bottom"><p>Open PDF or Project</p></TooltipContent>
+                    </Tooltip>
+                     <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={handleSave} className="h-10 w-10 rounded-lg" disabled={!originalPdfFile}>
+                            <Save className="h-5 w-5" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom"><p>Save Project</p></TooltipContent>
                     </Tooltip>
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -314,9 +412,9 @@ export default function Home() {
           )}
           <input
             type="file"
-            ref={pdfInputRef}
+            ref={fileInputRef}
             onChange={handleFileSelect}
-            accept="application/pdf"
+            accept="application/pdf,application/json"
             className="hidden"
           />
           <DrawingCanvas
@@ -329,6 +427,7 @@ export default function Home() {
             highlighterSize={highlighterSize}
             highlighterColor={highlighterColor}
             onHistoryChange={handleHistoryChange}
+            initialAnnotations={annotationDataToLoad}
           />
         </main>
       </div>
