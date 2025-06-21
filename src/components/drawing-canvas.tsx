@@ -45,10 +45,11 @@ interface DrawingCanvasProps {
   highlighterColor: string;
   onHistoryChange: (canUndo: boolean, canRedo: boolean) => void;
   initialAnnotations: AnnotationData | null;
+  toast: (options: { title: string; description: string; variant?: 'default' | 'destructive' }) => void;
 }
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange, initialAnnotations }, ref) => {
+  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange, initialAnnotations, toast }, ref) => {
     const isDrawingRef = useRef(false);
     const hasMovedRef = useRef(false);
 
@@ -140,14 +141,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             pageHistoryIndexRef.current = newHistoryIndexMap;
         } catch(e) {
             console.error("Failed to load annotations, file may be corrupt.", e);
-            alert("Failed to load annotations, the project file may be corrupt. Loading PDF without annotations.");
+            toast({
+                title: "Error loading project",
+                description: "The project file may be corrupt. Loading PDF without annotations.",
+                variant: "destructive",
+            });
             pageHistoryRef.current.clear();
             pageHistoryIndexRef.current.clear();
         }
 
         // The Page component's useEffect will handle calling restoreState once the canvas is sized.
       }
-    }, [initialAnnotations, pages.length, restoreState]);
+    }, [initialAnnotations, pages.length, restoreState, toast]);
 
     const getPoint = (e: React.MouseEvent | React.TouchEvent, canvasIndex: number): Point => {
       const canvas = drawingCanvasRefs.current[canvasIndex];
@@ -345,12 +350,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         if (pageHistoryRef.current.size === 0) return undefined;
 
         const uint8ClampedArrayToBase64 = (arr: Uint8ClampedArray) => {
-            let binary = '';
-            const len = arr.length;
-            for (let i = 0; i < len; i++) {
-                binary += String.fromCharCode(arr[i]);
+            const CHUNK_SIZE = 0x8000;
+            let result = '';
+            for (let i = 0; i < arr.length; i += CHUNK_SIZE) {
+                const chunk = arr.subarray(i, i + CHUNK_SIZE);
+                result += String.fromCharCode.apply(null, chunk as unknown as number[]);
             }
-            return window.btoa(binary);
+            return btoa(result);
         }
 
         const serializedHistory: [number, SerializableImageData[]][] = [];

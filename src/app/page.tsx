@@ -40,13 +40,14 @@ const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
 const DEFAULT_HIGHLIGHTER_COLOR = '#EAB308'; // Using yellow for highlighter as a default
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
-    let binary = '';
+    const CHUNK_SIZE = 0x8000;
     const bytes = new Uint8Array(buffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-        binary += String.fromCharCode(bytes[i]);
+    let result = '';
+    for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+        const chunk = bytes.subarray(i, i + CHUNK_SIZE);
+        result += String.fromCharCode.apply(null, chunk as unknown as number[]);
     }
-    return window.btoa(binary);
+    return btoa(result);
 }
 
 export default function Home() {
@@ -451,6 +452,7 @@ export default function Home() {
             highlighterColor={highlighterColor}
             onHistoryChange={handleHistoryChange}
             initialAnnotations={annotationDataToLoad}
+            toast={toast}
           />
         </main>
       </div>
