@@ -102,17 +102,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         const bgContext = backgroundContextRef.current;
         const container = containerRef.current;
         if (!backgroundCanvas || !bgContext || !container) return;
-
+        
+        const cssWidth = backgroundCanvas.offsetWidth;
+        const cssHeight = backgroundCanvas.offsetHeight;
+        
         bgContext.fillStyle = 'white';
-        bgContext.fillRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
+        bgContext.fillRect(0, 0, cssWidth, cssHeight);
         bgContext.drawImage(img, 0, 0);
       }
       img.onerror = () => {
           const backgroundCanvas = backgroundCanvasRef.current;
           const bgContext = backgroundContextRef.current;
           if (backgroundCanvas && bgContext) {
+            const cssWidth = backgroundCanvas.offsetWidth;
+            const cssHeight = backgroundCanvas.offsetHeight;
             bgContext.fillStyle = 'white';
-            bgContext.fillRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
+            bgContext.fillRect(0, 0, cssWidth, cssHeight);
           }
       }
 
@@ -357,7 +362,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       },
       getDimensions: () => {
         const canvas = canvasRef.current;
-        return canvas ? { width: canvas.width, height: canvas.height } : undefined;
+        return canvas ? { width: canvas.offsetWidth, height: canvas.offsetHeight } : undefined;
       }
     }));
 
