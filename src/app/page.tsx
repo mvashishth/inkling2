@@ -5,13 +5,11 @@ import {
   Pencil,
   Eraser,
   Download,
-  Wand2,
   Undo,
   Redo,
   Trash2,
 } from 'lucide-react';
 import { DrawingCanvas, type DrawingCanvasRef } from '@/components/drawing-canvas';
-import { StylizedPreview } from '@/components/stylized-preview';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
@@ -21,49 +19,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { stylizeDrawing } from '@/ai/flows/stylize-drawing';
-import { useToast } from '@/hooks/use-toast';
 
 type Tool = 'draw' | 'erase';
 
 export default function Home() {
   const [tool, setTool] = React.useState<Tool>('draw');
   const [eraserSize, setEraserSize] = React.useState(20);
-  const [stylizedImage, setStylizedImage] = React.useState<string | null>(null);
-  const [isStylizing, setIsStylizing] = React.useState(false);
   const [canUndo, setCanUndo] = React.useState(false);
   const [canRedo, setCanRedo] = React.useState(false);
 
   const canvasRef = React.useRef<DrawingCanvasRef>(null);
-  const { toast } = useToast();
-
-  const handleStylize = async () => {
-    const dataUrl = canvasRef.current?.exportAsDataURL();
-    if (!dataUrl || dataUrl.length < 100) { // Check for empty canvas
-      toast({
-        title: 'Empty Canvas',
-        description: 'Please draw something before stylizing.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setIsStylizing(true);
-    setStylizedImage(null);
-    try {
-      const result = await stylizeDrawing({ drawingDataUri: dataUrl });
-      setStylizedImage(result.stylizedDrawingDataUri);
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: 'Stylization Failed',
-        description: 'The AI could not process your drawing. Please try again.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsStylizing(false);
-    }
-  };
 
   const handleExport = () => {
     const dataUrl = canvasRef.current?.exportAsDataURL();
@@ -74,13 +39,6 @@ export default function Home() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    }
-  };
-
-  const handleAdopt = () => {
-    if (stylizedImage) {
-      canvasRef.current?.loadImage(stylizedImage);
-      setStylizedImage(null);
     }
   };
 
@@ -168,14 +126,6 @@ export default function Home() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={handleStylize} disabled={isStylizing} className="h-12 w-12 rounded-lg">
-                  <Wand2 className="h-6 w-6" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right"><p>AI Stylize</p></TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" onClick={handleExport} className="h-12 w-12 rounded-lg">
                   <Download className="h-6 w-6" />
                 </Button>
@@ -192,16 +142,6 @@ export default function Home() {
             eraserSize={eraserSize}
             onHistoryChange={handleHistoryChange}
           />
-          {(isStylizing || stylizedImage) && (
-            <div className="absolute bottom-4 right-4">
-              <StylizedPreview
-                isLoading={isStylizing}
-                imageDataUrl={stylizedImage}
-                onAdopt={handleAdopt}
-                onDismiss={() => setStylizedImage(null)}
-              />
-            </div>
-          )}
         </main>
       </div>
     </TooltipProvider>
