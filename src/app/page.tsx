@@ -64,6 +64,7 @@ export default function Home() {
   const [isPdfLoading, setIsPdfLoading] = React.useState(false);
   const [pdfLoadProgress, setPdfLoadProgress] = React.useState(0);
   const [originalPdfFile, setOriginalPdfFile] = React.useState<ArrayBuffer | null>(null);
+  const [originalPdfFileName, setOriginalPdfFileName] = React.useState<string | null>(null);
   const [annotationDataToLoad, setAnnotationDataToLoad] = React.useState<AnnotationData | null>(null);
 
   const canvasRef = React.useRef<DrawingCanvasRef>(null);
@@ -101,6 +102,7 @@ export default function Home() {
     const pdfDataBase64 = arrayBufferToBase64(originalPdfFile);
 
     const projectData = {
+        originalPdfFileName: originalPdfFileName,
         pdfDataBase64: pdfDataBase64,
         annotations: annotationData,
         fileType: 'inkling-project'
@@ -110,7 +112,8 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'annotated-project.json';
+    const downloadFileName = (originalPdfFileName ? originalPdfFileName.replace(/\.pdf$/i, '') : 'annotated-project') + '.json';
+    link.download = downloadFileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -203,6 +206,7 @@ export default function Home() {
                   const arrayBuffer = byteArray.buffer;
                   
                   setOriginalPdfFile(arrayBuffer);
+                  setOriginalPdfFileName(projectData.originalPdfFileName || file.name.replace(/\.json$/i, ".pdf"));
                   setAnnotationDataToLoad(projectData.annotations);
                   await loadPdf(arrayBuffer.slice(0));
               } else {
@@ -221,6 +225,7 @@ export default function Home() {
     } else if (file.type === 'application/pdf') {
         const arrayBuffer = await file.arrayBuffer();
         setOriginalPdfFile(arrayBuffer);
+        setOriginalPdfFileName(file.name);
         setAnnotationDataToLoad(null);
         await loadPdf(arrayBuffer.slice(0));
     } else {
@@ -238,6 +243,7 @@ export default function Home() {
     canvasRef.current?.clear();
     setPageImages([]);
     setOriginalPdfFile(null);
+    setOriginalPdfFileName(null);
     setAnnotationDataToLoad(null);
   };
 
