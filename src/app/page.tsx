@@ -11,7 +11,7 @@ import {
   Highlighter,
   FileUp,
   Save,
-  Camera,
+  Scissors,
   Link as LinkIcon,
   XCircle,
   StickyNote,
@@ -634,7 +634,7 @@ export default function Home() {
                         className="h-10 w-10 rounded-lg"
                         disabled={pageImages.length === 0}
                       >
-                        <Camera className="h-5 w-5" />
+                        <Scissors className="h-5 w-5" />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom"><p>Snapshot</p></TooltipContent>
