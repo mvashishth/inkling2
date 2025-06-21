@@ -34,6 +34,7 @@ export interface DrawingCanvasRef {
   initializePages: (numPages: number) => void;
   getAnnotationData: () => AnnotationData | undefined;
   getPageElement: (pageIndex: number) => HTMLDivElement | null;
+  getScrollContainer: () => HTMLDivElement | null;
 }
 
 interface DrawingCanvasProps {
@@ -594,6 +595,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         const pageWrapper = pageContainerRef.current?.querySelectorAll('.page-wrapper')[pageIndex];
         return pageWrapper as HTMLDivElement | null;
       },
+      getScrollContainer: () => pageContainerRef.current,
     }));
 
     useEffect(() => {

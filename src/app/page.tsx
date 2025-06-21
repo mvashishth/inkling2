@@ -431,9 +431,21 @@ export default function Home() {
     
     setSelectedSnapshot(snapshot.id);
     setSelectedNote(null);
+    const scrollContainer = pdfCanvasRef.current?.getScrollContainer();
     const pageElement = pdfCanvasRef.current?.getPageElement(snapshot.sourcePage);
-    if (pageElement) {
-      pageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (pageElement && scrollContainer) {
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const pageRect = pageElement.getBoundingClientRect();
+      
+      const rectCenterY_relative = snapshot.sourceRect.y + (snapshot.sourceRect.height / 2);
+      const rectCenterY_absolute = (pageRect.top - containerRect.top) + rectCenterY_relative;
+
+      const targetScrollTop = scrollContainer.scrollTop + rectCenterY_absolute - (containerRect.height / 2);
+
+      scrollContainer.scrollTo({
+        top: targetScrollTop,
+        behavior: 'smooth'
+      });
     }
   }, [pendingInkling, toast]);
 
@@ -482,21 +494,38 @@ export default function Home() {
     const inkling = inklings.find(i => i.id === inklingId);
     if (!inkling) return;
 
-    if (endpoint === 'pinup') {
+    if (endpoint === 'pinup') { // Clicked on pinup, scroll PDF
+      const scrollContainer = pdfCanvasRef.current?.getScrollContainer();
       const pageElement = pdfCanvasRef.current?.getPageElement(inkling.pdfPoint.pageIndex);
-      if (pageElement) {
-        pageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (pageElement && scrollContainer) {
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const pageRect = pageElement.getBoundingClientRect();
+        
+        const pointY_relative = inkling.pdfPoint.y; 
+        const pointY_absolute = (pageRect.top - containerRect.top) + pointY_relative;
+        const targetScrollTop = scrollContainer.scrollTop + pointY_absolute - (containerRect.height / 2);
+
+        scrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
       }
     } else { // 'pdf' endpoint clicked, go to pinup item
-      const { targetId, targetType } = inkling.pinupPoint;
+      const { targetId, targetType, y } = inkling.pinupPoint;
       const selector = targetType === 'snapshot' 
         ? `[data-snapshot-id="${targetId}"]` 
         : `[data-note-id="${targetId}"]`;
       
       const pinupElement = pinupContainerRef.current?.querySelector(selector) as HTMLDivElement;
+      const pinupScrollContainer = pinupScrollContainerRef.current;
       
-      if (pinupElement) {
-        pinupElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (pinupElement && pinupScrollContainer) {
+        const containerRect = pinupScrollContainer.getBoundingClientRect();
+        const elementRect = pinupElement.getBoundingClientRect();
+
+        const pointY_relative = y;
+        const pointY_absolute = (elementRect.top - containerRect.top) + pointY_relative;
+        const targetScrollTop = pinupScrollContainer.scrollTop + pointY_absolute - (containerRect.height / 2);
+
+        pinupScrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+        
         if (targetType === 'snapshot') {
           setSelectedSnapshot(targetId);
           setSelectedNote(null);
