@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -36,7 +37,7 @@ if (typeof window !== 'undefined') {
 
 type Tool = 'draw' | 'erase' | 'highlight';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
-const DEFAULT_HIGHLIGHTER_COLOR = '#EAB308'; // A bright yellow
+const DEFAULT_HIGHLIGHTER_COLOR = '#22C55E';
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
     let binary = '';
@@ -203,7 +204,7 @@ export default function Home() {
                   
                   setOriginalPdfFile(arrayBuffer);
                   setAnnotationDataToLoad(projectData.annotations);
-                  await loadPdf(arrayBuffer);
+                  await loadPdf(arrayBuffer.slice(0));
               } else {
                   throw new Error("Invalid project file format.");
               }
@@ -221,7 +222,7 @@ export default function Home() {
         const arrayBuffer = await file.arrayBuffer();
         setOriginalPdfFile(arrayBuffer);
         setAnnotationDataToLoad(null);
-        await loadPdf(arrayBuffer);
+        await loadPdf(arrayBuffer.slice(0));
     } else {
         toast({
             title: "Unsupported File Type",
