@@ -36,6 +36,7 @@ if (typeof window !== 'undefined') {
 
 type Tool = 'draw' | 'erase' | 'highlight';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
+const HIGHLIGHTER_COLOR = '#22C55E'; // Use a specific color for the highlighter
 
 export default function Home() {
   const [tool, setTool] = React.useState<Tool | null>(null);
@@ -215,7 +216,7 @@ export default function Home() {
                           />
                       </div>
       
-                      {(tool === 'draw' || tool === 'highlight') && (
+                      {tool === 'draw' && (
                           <>
                           <Separator orientation="vertical" className="h-6 bg-muted-foreground/20" />
                           <div className="flex flex-row flex-wrap justify-center gap-2">
@@ -320,6 +321,7 @@ export default function Home() {
             penSize={penSize}
             eraserSize={eraserSize}
             highlighterSize={highlighterSize}
+            highlighterColor={HIGHLIGHTER_COLOR}
             onHistoryChange={handleHistoryChange}
           />
         </main>

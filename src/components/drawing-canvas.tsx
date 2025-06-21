@@ -31,11 +31,12 @@ interface DrawingCanvasProps {
   penSize: number;
   eraserSize: number;
   highlighterSize: number;
+  highlighterColor: string;
   onHistoryChange: (canUndo: boolean, canRedo: boolean) => void;
 }
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, onHistoryChange }, ref) => {
+  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange }, ref) => {
     const isDrawingRef = useRef(false);
     const hasMovedRef = useRef(false);
 
@@ -121,8 +122,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
       context.lineCap = 'round';
       context.lineJoin = 'round';
-      context.strokeStyle = penColor;
+      
       if (tool === 'draw') {
+        context.strokeStyle = penColor;
         context.lineWidth = penSize;
         context.globalCompositeOperation = 'source-over';
         context.globalAlpha = 1.0;
@@ -130,6 +132,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         context.lineWidth = eraserSize;
         context.globalCompositeOperation = 'destination-out';
       } else if (tool === 'highlight') {
+        context.strokeStyle = highlighterColor;
         context.lineWidth = highlighterSize;
         context.globalCompositeOperation = 'source-over';
         context.globalAlpha = 0.2;
@@ -154,7 +157,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       const context = contextRefs.current[pageIndex];
       if (!isDrawingRef.current || !context || !lastPointRef.current) return;
       e.preventDefault();
-      hasMovedRef.current = true;
+
+      if (hasMovedRef.current === false) {
+        hasMovedRef.current = true;
+        if(tool !== 'highlight') {
+          context.beginPath();
+          context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+        }
+      }
+
       const currentPoint = getPoint(e, pageIndex);
 
       if (tool === 'highlight' && preStrokeImageDataRef.current && currentPathRef.current) {
@@ -162,8 +173,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         currentPathRef.current.lineTo(currentPoint.x, currentPoint.y);
         context.stroke(currentPathRef.current);
       } else {
-        context.beginPath();
-        context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
         context.lineTo(currentPoint.x, currentPoint.y);
         context.stroke();
       }
@@ -176,14 +185,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       const context = contextRefs.current[pageIndex];
       if (!isDrawingRef.current || !context) return;
       
-      if (!hasMovedRef.current && lastPointRef.current) {
+      if (hasMovedRef.current === false && lastPointRef.current) {
         const point = lastPointRef.current;
         if (tool === 'highlight' && preStrokeImageDataRef.current) {
           context.putImageData(preStrokeImageDataRef.current, 0, 0);
         }
 
         const size = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
-        context.fillStyle = penColor;
+        if (tool === 'highlight') {
+            context.fillStyle = highlighterColor;
+        } else {
+            context.fillStyle = penColor;
+        }
         context.beginPath();
         context.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
         context.fill();
