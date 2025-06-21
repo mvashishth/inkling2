@@ -24,7 +24,7 @@ export interface DrawingCanvasRef {
 }
 
 interface DrawingCanvasProps {
-  tool: 'draw' | 'erase' | 'highlight';
+  tool: 'draw' | 'erase' | 'highlight' | 'pan';
   penColor: string;
   penSize: number;
   eraserSize: number;
@@ -162,7 +162,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
     const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
       const context = contextRef.current;
-      if (!context) return;
+      if (!context || tool === 'pan') return;
       
       hasMovedRef.current = false;
       setIsDrawing(true);

@@ -11,6 +11,7 @@ import {
   Trash2,
   Highlighter,
   FileUp,
+  Move,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DrawingCanvas, type DrawingCanvasRef } from '@/components/drawing-canvas';
@@ -34,11 +35,11 @@ if (typeof window !== 'undefined') {
   ).toString();
 }
 
-type Tool = 'draw' | 'erase' | 'highlight';
+type Tool = 'draw' | 'erase' | 'highlight' | 'pan';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
 
 export default function Home() {
-  const [tool, setTool] = React.useState<Tool>('draw');
+  const [tool, setTool] = React.useState<Tool>('pan');
   const [penSize, setPenSize] = React.useState(5);
   const [penColor, setPenColor] = React.useState(COLORS[0]);
   const [eraserSize, setEraserSize] = React.useState(20);
@@ -152,6 +153,19 @@ export default function Home() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
+                        variant={tool === 'pan' ? 'secondary' : 'ghost'}
+                        size="icon"
+                        onClick={() => setTool('pan')}
+                        className="h-10 w-10 rounded-lg data-[state=active]:bg-accent"
+                      >
+                        <Move className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Pan</p></TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
                         variant={tool === 'draw' ? 'secondary' : 'ghost'}
                         size="icon"
                         onClick={() => setTool('draw')}
@@ -190,47 +204,49 @@ export default function Home() {
                   </Tooltip>
                 </div>
                 
-                <div className="flex flex-row items-center p-1.5 rounded-lg bg-muted/50 gap-4">
-                    <div className="flex items-center gap-2 px-1">
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">{tool === 'erase' ? 'Size' : 'Width'}: {sliderValue}</span>
-                        <Slider
-                        value={[sliderValue]}
-                        max={sliderMax}
-                        min={sliderMin}
-                        step={1}
-                        onValueChange={handleSliderChange}
-                        className="w-24"
-                        />
-                    </div>
-    
-                    {(tool === 'draw' || tool === 'highlight') && (
-                        <>
-                        <Separator orientation="vertical" className="h-6 bg-muted-foreground/20" />
-                        <div className="flex flex-row flex-wrap justify-center gap-2">
-                            {COLORS.map((color) => (
-                            <Tooltip key={color}>
-                                <TooltipTrigger asChild>
-                                <button
-                                    onClick={() => setPenColor(color)}
-                                    className={cn(
-                                    'h-6 w-6 rounded-full border-2 transition-all hover:scale-110',
-                                    penColor === color
-                                        ? 'border-primary'
-                                        : 'border-muted-foreground/20'
-                                    )}
-                                    style={{ backgroundColor: color }}
-                                    aria-label={`Set pen color to ${color}`}
-                                />
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">
-                                <p>{color.toUpperCase()}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                            ))}
-                        </div>
-                        </>
-                    )}
-                </div>
+                {tool !== 'pan' && (
+                  <div className="flex flex-row items-center p-1.5 rounded-lg bg-muted/50 gap-4">
+                      <div className="flex items-center gap-2 px-1">
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">{tool === 'erase' ? 'Size' : 'Width'}: {sliderValue}</span>
+                          <Slider
+                          value={[sliderValue]}
+                          max={sliderMax}
+                          min={sliderMin}
+                          step={1}
+                          onValueChange={handleSliderChange}
+                          className="w-24"
+                          />
+                      </div>
+      
+                      {(tool === 'draw' || tool === 'highlight') && (
+                          <>
+                          <Separator orientation="vertical" className="h-6 bg-muted-foreground/20" />
+                          <div className="flex flex-row flex-wrap justify-center gap-2">
+                              {COLORS.map((color) => (
+                              <Tooltip key={color}>
+                                  <TooltipTrigger asChild>
+                                  <button
+                                      onClick={() => setPenColor(color)}
+                                      className={cn(
+                                      'h-6 w-6 rounded-full border-2 transition-all hover:scale-110',
+                                      penColor === color
+                                          ? 'border-primary'
+                                          : 'border-muted-foreground/20'
+                                      )}
+                                      style={{ backgroundColor: color }}
+                                      aria-label={`Set pen color to ${color}`}
+                                  />
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom">
+                                  <p>{color.toUpperCase()}</p>
+                                  </TooltipContent>
+                              </Tooltip>
+                              ))}
+                          </div>
+                          </>
+                      )}
+                  </div>
+                )}
             </div>
 
             <div className="flex items-center gap-x-2 sm:gap-x-4">
