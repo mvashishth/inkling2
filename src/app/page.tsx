@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from 'react';
@@ -126,144 +127,144 @@ export default function Home() {
 
   return (
     <TooltipProvider delayDuration={100}>
-      <div className="flex h-dvh w-full flex-col md:flex-row bg-background text-foreground overflow-hidden">
-        <aside className="w-full md:w-24 flex flex-row md:flex-col items-center gap-4 p-2 md:p-4 border-b md:border-r bg-card shadow-md md:shadow-lg">
-          <div className="flex flex-row md:flex-col items-center gap-2 md:gap-4">
-            <h1 className="font-headline text-2xl font-bold hidden md:block">Inkling</h1>
-            <div className="flex items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={tool === 'draw' ? 'secondary' : 'ghost'}
-                    size="icon"
-                    onClick={() => setTool('draw')}
-                    className="h-12 w-12 rounded-lg data-[state=active]:bg-accent"
-                  >
-                    <Pencil className="h-6 w-6" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right"><p>Draw</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={tool === 'erase' ? 'secondary' : 'ghost'}
-                    size="icon"
-                    onClick={() => setTool('erase')}
-                    className="h-12 w-12 rounded-lg data-[state=active]:bg-accent"
-                  >
-                    <Eraser className="h-6 w-6" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right"><p>Eraser</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={tool === 'highlight' ? 'secondary' : 'ghost'}
-                    size="icon"
-                    onClick={() => setTool('highlight')}
-                    className="h-12 w-12 rounded-lg data-[state=active]:bg-accent"
-                  >
-                    <Highlighter className="h-6 w-6" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right"><p>Highlight</p></TooltipContent>
-              </Tooltip>
-            </div>
-            
-            <div className="w-auto md:w-full flex flex-col items-stretch justify-center p-2 rounded-lg bg-muted/50 gap-3">
-              <div className="flex flex-col items-center gap-2 px-1">
-                <div className="w-full flex justify-between text-xs text-muted-foreground">
-                  <span>{tool === 'erase' ? 'Size' : 'Width'}</span>
-                  <span>{sliderValue}</span>
+      <div className="flex h-dvh w-full flex-col bg-background text-foreground overflow-hidden">
+        <aside className="flex flex-row items-center justify-between gap-4 p-2 border-b bg-card shadow-md z-10">
+            <div className="flex items-center gap-x-2 sm:gap-x-4">
+                <h1 className="font-headline text-xl font-bold px-2 hidden sm:block">Inkling</h1>
+                <div className="flex items-center gap-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={tool === 'draw' ? 'secondary' : 'ghost'}
+                        size="icon"
+                        onClick={() => setTool('draw')}
+                        className="h-10 w-10 rounded-lg data-[state=active]:bg-accent"
+                      >
+                        <Pencil className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Draw</p></TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={tool === 'erase' ? 'secondary' : 'ghost'}
+                        size="icon"
+                        onClick={() => setTool('erase')}
+                        className="h-10 w-10 rounded-lg data-[state=active]:bg-accent"
+                      >
+                        <Eraser className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Eraser</p></TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={tool === 'highlight' ? 'secondary' : 'ghost'}
+                        size="icon"
+                        onClick={() => setTool('highlight')}
+                        className="h-10 w-10 rounded-lg data-[state=active]:bg-accent"
+                      >
+                        <Highlighter className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Highlight</p></TooltipContent>
+                  </Tooltip>
                 </div>
-                <Slider
-                  value={[sliderValue]}
-                  max={sliderMax}
-                  min={sliderMin}
-                  step={1}
-                  onValueChange={handleSliderChange}
-                  className="w-28 md:w-full"
-                />
-              </div>
+                
+                <div className="flex flex-row items-center p-1.5 rounded-lg bg-muted/50 gap-4">
+                    <div className="flex items-center gap-2 px-1">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">{tool === 'erase' ? 'Size' : 'Width'}: {sliderValue}</span>
+                        <Slider
+                        value={[sliderValue]}
+                        max={sliderMax}
+                        min={sliderMin}
+                        step={1}
+                        onValueChange={handleSliderChange}
+                        className="w-24"
+                        />
+                    </div>
+    
+                    {(tool === 'draw' || tool === 'highlight') && (
+                        <>
+                        <Separator orientation="vertical" className="h-6 bg-muted-foreground/20" />
+                        <div className="flex flex-row flex-wrap justify-center gap-2">
+                            {COLORS.map((color) => (
+                            <Tooltip key={color}>
+                                <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => setPenColor(color)}
+                                    className={cn(
+                                    'h-6 w-6 rounded-full border-2 transition-all hover:scale-110',
+                                    penColor === color
+                                        ? 'border-primary'
+                                        : 'border-muted-foreground/20'
+                                    )}
+                                    style={{ backgroundColor: color }}
+                                    aria-label={`Set pen color to ${color}`}
+                                />
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">
+                                <p>{color.toUpperCase()}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                            ))}
+                        </div>
+                        </>
+                    )}
+                </div>
+            </div>
 
-              {(tool === 'draw' || tool === 'highlight') && (
-                <>
-                  <Separator className="bg-muted-foreground/20" />
-                  <div className="flex flex-row flex-wrap justify-center gap-2">
-                    {COLORS.map((color) => (
-                      <Tooltip key={color}>
+            <div className="flex items-center gap-x-2 sm:gap-x-4">
+                <div className="flex items-center gap-1">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.undo()} disabled={!canUndo} className="h-10 w-10 rounded-lg">
+                        <Undo className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Undo</p></TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.redo()} disabled={!canRedo} className="h-10 w-10 rounded-lg">
+                        <Redo className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Redo</p></TooltipContent>
+                  </Tooltip>
+                </div>
+
+                <Separator orientation="vertical" className="h-8 mx-2" />
+
+                <div className="flex items-center gap-1">
+                    <Tooltip>
                         <TooltipTrigger asChild>
-                          <button
-                            onClick={() => setPenColor(color)}
-                            className={cn(
-                              'h-7 w-7 rounded-full border-2 transition-all hover:scale-110',
-                              penColor === color
-                                ? 'border-primary'
-                                : 'border-muted-foreground/20'
-                            )}
-                            style={{ backgroundColor: color }}
-                            aria-label={`Set pen color to ${color}`}
-                          />
+                            <Button variant="ghost" size="icon" onClick={handlePdfUploadClick} className="h-10 w-10 rounded-lg">
+                            <FileUp className="h-5 w-5" />
+                            </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="right">
-                          <p>{color.toUpperCase()}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    ))}
-                  </div>
-                </>
-              )}
+                        <TooltipContent side="bottom"><p>Upload PDF</p></TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.clear()} className="h-10 w-10 rounded-lg">
+                            <Trash2 className="h-5 w-5 text-destructive" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom"><p>Clear Canvas</p></TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={handleExport} className="h-10 w-10 rounded-lg">
+                            <Download className="h-5 w-5" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom"><p>Export as PNG</p></TooltipContent>
+                    </Tooltip>
+                </div>
             </div>
-            
-            <Separator className="hidden md:block" />
-            <div className="flex items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.undo()} disabled={!canUndo} className="h-12 w-12 rounded-lg">
-                    <Undo className="h-6 w-6" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right"><p>Undo</p></TooltipContent>
-              </Tooltip>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.redo()} disabled={!canRedo} className="h-12 w-12 rounded-lg">
-                    <Redo className="h-6 w-6" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right"><p>Redo</p></TooltipContent>
-              </Tooltip>
-            </div>
-          </div>
-
-          <div className="flex flex-row md:flex-col items-center gap-2 ml-auto md:ml-0 md:mt-auto">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={handlePdfUploadClick} className="h-12 w-12 rounded-lg">
-                  <FileUp className="h-6 w-6" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right"><p>Upload PDF</p></TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.clear()} className="h-12 w-12 rounded-lg">
-                  <Trash2 className="h-6 w-6 text-destructive" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right"><p>Clear Canvas</p></TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="ghost" size="icon" onClick={handleExport} className="h-12 w-12 rounded-lg">
-                  <Download className="h-6 w-6" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right"><p>Export as PNG</p></TooltipContent>
-            </Tooltip>
-          </div>
         </aside>
 
         <main className="flex-1 relative bg-background overflow-auto">
