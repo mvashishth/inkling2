@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
+import { Progress } from '@/components/ui/progress';
 
 if (typeof window !== 'undefined') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -44,6 +45,8 @@ export default function Home() {
   const [highlighterSize, setHighlighterSize] = React.useState(20);
   const [canUndo, setCanUndo] = React.useState(false);
   const [canRedo, setCanRedo] = React.useState(false);
+  const [isPdfLoading, setIsPdfLoading] = React.useState(false);
+  const [pdfLoadProgress, setPdfLoadProgress] = React.useState(0);
 
   const canvasRef = React.useRef<DrawingCanvasRef>(null);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
@@ -84,16 +87,29 @@ export default function Home() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsPdfLoading(true);
+    setPdfLoadProgress(0);
+
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+
+      const loadingTask = pdfjsLib.getDocument(arrayBuffer);
+      loadingTask.onProgress = (progressData) => {
+        const progress = Math.round((progressData.loaded / progressData.total) * 100);
+        setPdfLoadProgress(progress);
+      };
+      
+      const pdf = await loadingTask.promise;
       const page = await pdf.getPage(1); // Render first page
 
       const viewport = page.getViewport({ scale: 2.0 }); // Render at 2x scale for quality
 
       const tempCanvas = document.createElement('canvas');
       const tempContext = tempCanvas.getContext('2d');
-      if (!tempContext) return;
+      if (!tempContext) {
+        setIsPdfLoading(false);
+        return;
+      }
 
       tempCanvas.width = viewport.width;
       tempCanvas.height = viewport.height;
@@ -118,6 +134,7 @@ export default function Home() {
       if (e.target) {
         e.target.value = '';
       }
+      setIsPdfLoading(false);
     }
   };
 
@@ -241,7 +258,7 @@ export default function Home() {
                 <div className="flex items-center gap-1">
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={handlePdfUploadClick} className="h-10 w-10 rounded-lg">
+                            <Button variant="ghost" size="icon" onClick={handlePdfUploadClick} className="h-10 w-10 rounded-lg" disabled={isPdfLoading}>
                             <FileUp className="h-5 w-5" />
                             </Button>
                         </TooltipTrigger>
@@ -268,6 +285,13 @@ export default function Home() {
         </aside>
 
         <main className="flex-1 relative bg-background overflow-auto">
+          {isPdfLoading && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
+                <p className="mb-4 text-lg font-medium">Loading PDF...</p>
+                <Progress value={pdfLoadProgress} className="w-1/2 max-w-sm" />
+                <p className="mt-2 text-sm text-muted-foreground">{pdfLoadProgress}%</p>
+            </div>
+          )}
           <input
             type="file"
             ref={pdfInputRef}
