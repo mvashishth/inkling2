@@ -117,11 +117,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     useEffect(() => {
       if (initialAnnotations && pages.length > 0) {
         const base64ToUint8ClampedArray = (base64: string) => {
-            const binary_string = window.atob(base64);
-            const len = binary_string.length;
+            const CHUNK_SIZE = 0x8000;
+            let result = '';
+            for (let i = 0; i < base64.length; i += CHUNK_SIZE) {
+                const chunk = base64.substring(i, i + CHUNK_SIZE);
+                result += window.atob(chunk);
+            }
+            const len = result.length;
             const bytes = new Uint8ClampedArray(len);
             for (let i = 0; i < len; i++) {
-                bytes[i] = binary_string.charCodeAt(i);
+                bytes[i] = result.charCodeAt(i);
             }
             return bytes;
         }
