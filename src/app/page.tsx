@@ -144,7 +144,7 @@ export default function Home() {
 
   return (
     <TooltipProvider delayDuration={100}>
-      <div className="flex h-dvh w-full flex-col bg-background text-foreground overflow-hidden">
+      <div className="flex h-dvh w-full flex-col bg-background text-foreground">
         <aside className="flex flex-row items-center justify-between gap-4 p-2 border-b bg-card shadow-md z-10">
             <div className="flex items-center gap-x-2 sm:gap-x-4">
                 <h1 className="font-headline text-xl font-bold px-2 hidden sm:block">Inkling</h1>

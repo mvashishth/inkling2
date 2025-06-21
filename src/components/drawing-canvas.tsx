@@ -52,6 +52,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     const historyRef = useRef<ImageData[]>([]);
     const historyIndexRef = useRef<number>(-1);
 
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (canvas) {
+            canvas.style.touchAction = isDrawing ? 'none' : 'auto';
+        }
+    }, [isDrawing]);
+
     const saveState = useCallback(() => {
       if (!canvasRef.current || !contextRef.current) return;
       const canvas = canvasRef.current;
@@ -154,7 +161,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     };
 
     const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-      e.preventDefault();
       const context = contextRef.current;
       if (!context) return;
       
@@ -172,7 +178,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     };
 
     const draw = (e: React.MouseEvent | React.TouchEvent) => {
-      e.preventDefault();
       if (!isDrawing || !contextRef.current || !lastPointRef.current) return;
       hasMovedRef.current = true;
       const context = contextRef.current;
@@ -354,7 +359,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
           onTouchStart={startDrawing}
           onTouchMove={draw}
           onTouchEnd={stopDrawing}
-          className="touch-none absolute inset-0"
+          className="absolute inset-0"
           data-ai-hint="drawing layer"
         />
       </div>
