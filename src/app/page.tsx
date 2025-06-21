@@ -765,16 +765,16 @@ export default function Home() {
           <svg className="absolute inset-0 w-full h-full pointer-events-none z-20">
             {inklingRenderData.map(data => (
                 <g key={data.id} onMouseEnter={() => setHoveredInkling(data.id)} onMouseLeave={() => setHoveredInkling(null)}>
-                    <path d={data.path} stroke="transparent" strokeWidth="15" fill="none" className="pointer-events-stroke" />
+                    <path d={data.path} stroke="transparent" strokeWidth="15" fill="none" className="pointer-events-auto" />
                     <path 
                         d={data.path} 
                         stroke={hoveredInkling === data.id ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} 
                         strokeWidth="2" 
                         fill="none" 
-                        className="transition-all"
+                        className="transition-all pointer-events-none"
                     />
-                    <circle cx={data.startCircle.cx} cy={data.startCircle.cy} r="4" fill={hoveredInkling === data.id ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} className="transition-all"/>
-                    <circle cx={data.endCircle.cx} cy={data.endCircle.cy} r="4" fill={hoveredInkling === data.id ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} className="transition-all"/>
+                    <circle cx={data.startCircle.cx} cy={data.startCircle.cy} r="4" fill={hoveredInkling === data.id ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} className="transition-all pointer-events-none"/>
+                    <circle cx={data.endCircle.cx} cy={data.endCircle.cy} r="4" fill={hoveredInkling === data.id ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} className="transition-all pointer-events-none"/>
                     
                     {hoveredInkling === data.id && (
                       <g className="pointer-events-auto cursor-pointer" onClick={() => handleDeleteInkling(data.id)}>
