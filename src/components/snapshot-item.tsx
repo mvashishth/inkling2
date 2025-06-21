@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { X, Expand } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -25,49 +25,16 @@ interface SnapshotItemProps {
 }
 
 export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, onDelete, onClick, isSelected, onSelect }) => {
-    const itemRef = useRef<HTMLDivElement>(null);
-    const interactionRef = useRef<{
-        type: 'drag' | 'resize' | null;
-        startX: number;
-        startY: number;
-        snapshotStartX: number;
-        snapshotStartY: number;
-        startWidth: number;
-        startHeight: number;
-    }>({ type: null, startX: 0, startY: 0, snapshotStartX: 0, snapshotStartY: 0, startWidth: 0, startHeight: 0 });
+    const [interaction, setInteraction] = useState<{ type: 'drag' | 'resize' | null }>({ type: null });
     const hasMovedRef = useRef(false);
-
-    const handleMouseMove = useCallback((e: MouseEvent) => {
-        const { type, startX, startY, snapshotStartX, snapshotStartY, startWidth, startHeight } = interactionRef.current;
-        if (!type) return;
-
-        hasMovedRef.current = true;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-
-        if (type === 'drag') {
-            onUpdate(snapshot.id, {
-                x: snapshotStartX + dx,
-                y: snapshotStartY + dy,
-            });
-        } else if (type === 'resize') {
-            onUpdate(snapshot.id, {
-                width: Math.max(50, startWidth + dx),
-                height: Math.max(50, startHeight + dy),
-            });
-        }
-    }, [snapshot.id, onUpdate]);
-
-    const handleMouseUp = useCallback(() => {
-        interactionRef.current.type = null;
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-        
-        // Use a timeout to reset hasMovedRef to allow click event to process
-        setTimeout(() => {
-            hasMovedRef.current = false;
-        }, 0);
-    }, [handleMouseMove]);
+    const interactionStartRef = useRef({
+        startX: 0,
+        startY: 0,
+        snapshotStartX: 0,
+        snapshotStartY: 0,
+        startWidth: 0,
+        startHeight: 0,
+    });
 
     const handleInteractionStart = (
         e: React.MouseEvent,
@@ -78,8 +45,7 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
         onSelect();
         hasMovedRef.current = false;
         
-        interactionRef.current = {
-            type,
+        interactionStartRef.current = {
             startX: e.clientX,
             startY: e.clientY,
             snapshotStartX: snapshot.x,
@@ -87,23 +53,51 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             startWidth: snapshot.width,
             startHeight: snapshot.height,
         };
+        
+        setInteraction({ type });
+    };
 
+    useEffect(() => {
+        if (!interaction.type) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            e.preventDefault();
+            hasMovedRef.current = true;
+            
+            const { startX, startY, snapshotStartX, snapshotStartY, startWidth, startHeight } = interactionStartRef.current;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            if (interaction.type === 'drag') {
+                onUpdate(snapshot.id, {
+                    x: snapshotStartX + dx,
+                    y: snapshotStartY + dy,
+                });
+            } else if (interaction.type === 'resize') {
+                onUpdate(snapshot.id, {
+                    width: Math.max(50, startWidth + dx),
+                    height: Math.max(50, startHeight + dy),
+                });
+            }
+        };
+
+        const handleMouseUp = (e: MouseEvent) => {
+            e.preventDefault();
+            setInteraction({ type: null });
+        };
+        
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp);
-    };
-    
-    useEffect(() => {
-        // Cleanup listeners on unmount
+
         return () => {
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [handleMouseMove, handleMouseUp]);
+    }, [interaction.type, onUpdate, snapshot.id]);
 
 
     return (
         <div
-            ref={itemRef}
             style={{ 
                 left: snapshot.x, 
                 top: snapshot.y, 
@@ -118,9 +112,12 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             onMouseDown={(e) => handleInteractionStart(e, 'drag')}
             onClickCapture={(e) => {
                 e.stopPropagation();
-                if (!hasMovedRef.current) {
-                    onClick();
-                }
+                // A brief timeout allows the mouseup from the drag to settle, preventing click from firing accidentally
+                setTimeout(() => {
+                    if (!hasMovedRef.current) {
+                        onClick();
+                    }
+                }, 0);
             }}
             data-ai-hint="pdf snapshot"
         >
