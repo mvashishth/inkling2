@@ -527,7 +527,10 @@ export default function Home() {
         <main className="flex-1 flex flex-row overflow-hidden">
           <div 
             className="w-3/5 flex flex-col"
-            onMouseDownCapture={() => setActiveCanvas('pdf')}
+            onMouseDownCapture={() => {
+              setActiveCanvas('pdf');
+              setSelectedSnapshot(null);
+            }}
           >
             <div 
               className="flex-1 relative bg-background overflow-auto"
