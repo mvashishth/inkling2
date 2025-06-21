@@ -8,6 +8,7 @@ import {
   Undo,
   Redo,
   Trash2,
+  Highlighter,
 } from 'lucide-react';
 import { DrawingCanvas, type DrawingCanvasRef } from '@/components/drawing-canvas';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 
-type Tool = 'draw' | 'erase';
+type Tool = 'draw' | 'erase' | 'highlight';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
 
 export default function Home() {
@@ -29,6 +30,7 @@ export default function Home() {
   const [penSize, setPenSize] = React.useState(5);
   const [penColor, setPenColor] = React.useState(COLORS[0]);
   const [eraserSize, setEraserSize] = React.useState(20);
+  const [highlighterSize, setHighlighterSize] = React.useState(20);
   const [canUndo, setCanUndo] = React.useState(false);
   const [canRedo, setCanRedo] = React.useState(false);
 
@@ -54,14 +56,16 @@ export default function Home() {
   const handleSliderChange = (value: number[]) => {
     if (tool === 'draw') {
       setPenSize(value[0]);
+    } else if (tool === 'highlight') {
+      setHighlighterSize(value[0]);
     } else {
       setEraserSize(value[0]);
     }
   };
 
-  const sliderValue = tool === 'draw' ? penSize : eraserSize;
-  const sliderMin = tool === 'draw' ? 1 : 2;
-  const sliderMax = tool === 'draw' ? 20 : 100;
+  const sliderValue = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
+  const sliderMin = tool === 'draw' ? 1 : tool === 'highlight' ? 10 : 2;
+  const sliderMax = tool === 'draw' ? 20 : tool === 'highlight' ? 50 : 100;
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -96,12 +100,25 @@ export default function Home() {
                 </TooltipTrigger>
                 <TooltipContent side="right"><p>Eraser</p></TooltipContent>
               </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={tool === 'highlight' ? 'secondary' : 'ghost'}
+                    size="icon"
+                    onClick={() => setTool('highlight')}
+                    className="h-12 w-12 rounded-lg data-[state=active]:bg-accent"
+                  >
+                    <Highlighter className="h-6 w-6" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right"><p>Highlight</p></TooltipContent>
+              </Tooltip>
             </div>
             
             <div className="w-auto md:w-full flex flex-col items-stretch justify-center p-2 rounded-lg bg-muted/50 gap-3">
               <div className="flex flex-col items-center gap-2 px-1">
                 <div className="w-full flex justify-between text-xs text-muted-foreground">
-                  <span>{tool === 'draw' ? 'Width' : 'Size'}</span>
+                  <span>{tool === 'erase' ? 'Size' : 'Width'}</span>
                   <span>{sliderValue}</span>
                 </div>
                 <Slider
@@ -114,7 +131,7 @@ export default function Home() {
                 />
               </div>
 
-              {tool === 'draw' && (
+              {(tool === 'draw' || tool === 'highlight') && (
                 <>
                   <Separator className="bg-muted-foreground/20" />
                   <div className="flex flex-row flex-wrap justify-center gap-2">
@@ -191,6 +208,7 @@ export default function Home() {
             penColor={penColor}
             penSize={penSize}
             eraserSize={eraserSize}
+            highlighterSize={highlighterSize}
             onHistoryChange={handleHistoryChange}
           />
         </main>

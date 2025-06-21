@@ -24,16 +24,17 @@ export interface DrawingCanvasRef {
 }
 
 interface DrawingCanvasProps {
-  tool: 'draw' | 'erase';
+  tool: 'draw' | 'erase' | 'highlight';
   penColor: string;
   penSize: number;
   eraserSize: number;
+  highlighterSize: number;
   onHistoryChange: (canUndo: boolean, canRedo: boolean) => void;
 }
 
 // --- Component ---
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-  ({ tool, penColor, penSize, eraserSize, onHistoryChange }, ref) => {
+  ({ tool, penColor, penSize, eraserSize, highlighterSize, onHistoryChange }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const contextRef = useRef<CanvasRenderingContext2D | null>(null);
 
@@ -125,12 +126,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       const point = getPoint(e);
       lastPointRef.current = point;
 
-      if (tool === 'draw') {
+      if (tool === 'draw' || tool === 'highlight') {
         context.globalCompositeOperation = 'source-over';
+        context.globalAlpha = tool === 'highlight' ? 0.4 : 1.0;
         context.beginPath();
-        context.moveTo(point.x, point.y);
         context.fillStyle = penColor;
-        context.arc(point.x, point.y, penSize / 2, 0, Math.PI * 2);
+        const size = tool === 'draw' ? penSize : highlighterSize;
+        context.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
         context.fill();
       }
     };
@@ -142,8 +144,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       const currentPoint = getPoint(e);
 
       context.globalCompositeOperation = tool === 'erase' ? 'destination-out' : 'source-over';
+      context.globalAlpha = tool === 'highlight' ? 0.4 : 1.0;
       
-      const lineWidth = tool === 'draw' ? penSize : eraserSize;
+      const lineWidth = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
       
       context.lineWidth = lineWidth;
       context.strokeStyle = penColor;
