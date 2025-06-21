@@ -128,7 +128,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
       if (tool === 'draw' || tool === 'highlight') {
         context.globalCompositeOperation = 'source-over';
-        context.globalAlpha = tool === 'highlight' ? 0.4 : 1.0;
+        context.globalAlpha = tool === 'highlight' ? 0.05 : 1.0;
         context.beginPath();
         context.fillStyle = penColor;
         const size = tool === 'draw' ? penSize : highlighterSize;
@@ -144,7 +144,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       const currentPoint = getPoint(e);
 
       context.globalCompositeOperation = tool === 'erase' ? 'destination-out' : 'source-over';
-      context.globalAlpha = tool === 'highlight' ? 0.4 : 1.0;
+      context.globalAlpha = tool === 'highlight' ? 0.05 : 1.0;
       
       const lineWidth = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
       
