@@ -488,6 +488,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                 <canvas
                     ref={(el) => (drawingCanvasRefs.current[index] = el)}
                     onMouseDown={(e) => startDrawing(e, index)}
+                    onTouchStart={(e) => startDrawing(e, index)}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDrawing}
                     className={cn(
                         "absolute inset-0",
                         !tool && 'pointer-events-none',
@@ -539,17 +545,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
           <div
             ref={pageContainerRef}
             className="w-full h-full"
-            onMouseMove={draw}
-            onMouseUp={stopDrawing}
-            onMouseLeave={stopDrawing}
-            onTouchMove={draw}
-            onTouchEnd={stopDrawing}
           >
             <div className="relative w-full h-full bg-white">
               <canvas
                 ref={el => { if(el) drawingCanvasRefs.current[0] = el}}
                 onMouseDown={(e) => startDrawing(e, 0)}
                 onTouchStart={(e) => startDrawing(e, 0)}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+                onTouchMove={draw}
+                onTouchEnd={stopDrawing}
                 className={cn(
                   'w-full h-full',
                   !tool && 'pointer-events-none'
@@ -565,11 +571,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       <div 
         ref={pageContainerRef}
         className="w-full h-full overflow-y-auto bg-muted/20 p-4"
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        onTouchMove={draw}
-        onTouchEnd={stopDrawing}
       >
         <div className="max-w-5xl mx-auto">
             {pages.map((pageDataUrl, index) => (
