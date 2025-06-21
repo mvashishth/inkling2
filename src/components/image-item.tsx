@@ -259,7 +259,7 @@ export const ImageItem: React.FC<ImageItemProps> = ({ image, onUpdate, onDelete,
         >
              <div className={cn(
                 "w-full h-full border-2",
-                isSelected ? "border-blue-500 ring-2 ring-blue-500" : "border-transparent hover:border-blue-500/50",
+                isSelected ? "border-green-500 ring-2 ring-green-500" : "border-transparent hover:border-green-500/50",
             )}>
                 <img
                     src={image.imageDataUrl}
@@ -286,7 +286,7 @@ export const ImageItem: React.FC<ImageItemProps> = ({ image, onUpdate, onDelete,
                         onMouseDown={(e) => handleInteractionStart(e, 'resize')}
                         onTouchStart={(e) => handleInteractionStart(e, 'resize')}
                         className={cn(
-                            "absolute -bottom-2 -right-2 bg-blue-500 text-white rounded-full p-1 z-20 cursor-nwse-resize hover:scale-110 transition-transform"
+                            "absolute -bottom-2 -right-2 bg-green-500 text-white rounded-full p-1 z-20 cursor-nwse-resize hover:scale-110 transition-transform"
                         )}
                         aria-label="Resize image"
                     >
