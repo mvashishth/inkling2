@@ -88,9 +88,6 @@ export default function Home() {
 
   const handleToolClick = (selectedTool: Tool) => {
     setTool((currentTool) => (currentTool === selectedTool ? null : selectedTool));
-    if (selectedTool !== 'snapshot') {
-      setActiveCanvas('pdf');
-    }
   };
 
   const handleExport = () => {

@@ -531,17 +531,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
     if (pages.length === 0) {
         return (
-          <div ref={pageContainerRef} className="w-full h-full">
+          <div
+            ref={pageContainerRef}
+            className="w-full h-full"
+            onMouseMove={draw}
+            onMouseUp={stopDrawing}
+            onMouseLeave={stopDrawing}
+            onTouchMove={draw}
+            onTouchEnd={stopDrawing}
+          >
             <div className="relative w-full h-full bg-white">
               <canvas
                 ref={el => { if(el) drawingCanvasRefs.current[0] = el}}
                 onMouseDown={(e) => startDrawing(e, 0)}
-                onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
                 onTouchStart={(e) => startDrawing(e, 0)}
-                onTouchMove={draw}
-                onTouchEnd={stopDrawing}
                 className={cn(
                   'w-full h-full',
                   !tool && 'pointer-events-none'
