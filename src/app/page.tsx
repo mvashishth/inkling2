@@ -13,6 +13,8 @@ import {
   FileUp,
   Save,
   Camera,
+  Link as LinkIcon,
+  XCircle,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DrawingCanvas, type DrawingCanvasRef, type AnnotationData } from '@/components/drawing-canvas';
@@ -37,7 +39,7 @@ if (typeof window !== 'undefined') {
   ).toString();
 }
 
-type Tool = 'draw' | 'erase' | 'highlight' | 'snapshot';
+type Tool = 'draw' | 'erase' | 'highlight' | 'snapshot' | 'inkling';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -49,6 +51,29 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
         result += String.fromCharCode.apply(null, chunk as unknown as number[]);
     }
     return btoa(result);
+}
+
+interface PdfPoint {
+  pageIndex: number;
+  x: number;
+  y: number;
+}
+interface SnapshotPoint {
+  snapshotId: string;
+  x: number;
+  y: number;
+}
+export interface Inkling {
+  id: string;
+  pdfPoint: PdfPoint;
+  snapshotPoint: SnapshotPoint;
+}
+
+interface InklingRenderData {
+  id: string;
+  path: string;
+  startCircle: { cx: number; cy: number };
+  endCircle: { cx: number; cy: number };
 }
 
 export default function Home() {
@@ -70,6 +95,8 @@ export default function Home() {
   const pdfCanvasRef = React.useRef<DrawingCanvasRef>(null);
   const pinupCanvasRef = React.useRef<DrawingCanvasRef>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const mainContainerRef = React.useRef<HTMLDivElement>(null);
+  const pdfContainerRef = React.useRef<HTMLDivElement>(null);
   const pinupContainerRef = React.useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -83,6 +110,12 @@ export default function Home() {
   const [snapshots, setSnapshots] = React.useState<Snapshot[]>([]);
   const [selectedSnapshot, setSelectedSnapshot] = React.useState<string | null>(null);
 
+  const [inklings, setInklings] = React.useState<Inkling[]>([]);
+  const [pendingInkling, setPendingInkling] = React.useState<PdfPoint | null>(null);
+  const [inklingRenderData, setInklingRenderData] = React.useState<InklingRenderData[]>([]);
+  const [pendingInklingRenderPoint, setPendingInklingRenderPoint] = React.useState<{cx: number, cy: number} | null>(null);
+  const [hoveredInkling, setHoveredInkling] = React.useState<string | null>(null);
+
   const canUndo = activeCanvas === 'pdf' ? pdfCanUndo : pinupCanUndo;
   const canRedo = activeCanvas === 'pdf' ? pdfCanRedo : pinupCanRedo;
   const activeCanvasRef = activeCanvas === 'pdf' ? pdfCanvasRef : pinupCanvasRef;
@@ -90,6 +123,9 @@ export default function Home() {
 
   const handleToolClick = (selectedTool: Tool) => {
     setTool((currentTool) => (currentTool === selectedTool ? null : selectedTool));
+    if (selectedTool !== 'inkling') {
+      setPendingInkling(null);
+    }
   };
 
   const handleExport = () => {
@@ -133,6 +169,7 @@ export default function Home() {
         pdfDataBase64: pdfDataBase64,
         annotations: annotationData,
         snapshots: snapshots,
+        inklings: inklings,
         fileType: 'inkling-project'
     };
     
@@ -187,6 +224,7 @@ export default function Home() {
     setPdfLoadProgress(0);
     setPageImages([]);
     setSnapshots([]);
+    setInklings([]);
     pdfCanvasRef.current?.clear();
     pinupCanvasRef.current?.clear();
 
@@ -251,6 +289,7 @@ export default function Home() {
                   setOriginalPdfFileName(projectData.originalPdfFileName || file.name.replace(/\.json$/i, ".pdf"));
                   setAnnotationDataToLoad(projectData.annotations);
                   setSnapshots(projectData.snapshots || []);
+                  setInklings(projectData.inklings || []);
                   await loadPdf(arrayBuffer.slice(0));
               } else {
                   throw new Error("Invalid project file format.");
@@ -271,6 +310,7 @@ export default function Home() {
         setOriginalPdfFileName(file.name);
         setAnnotationDataToLoad(null);
         setSnapshots([]);
+        setInklings([]);
         await loadPdf(arrayBuffer.slice(0));
     } else {
         toast({
@@ -291,9 +331,12 @@ export default function Home() {
         setOriginalPdfFileName(null);
         setAnnotationDataToLoad(null);
         setSnapshots([]);
+        setInklings([]);
     } else {
         pinupCanvasRef.current?.clear();
-        setSnapshots([]);
+        const pdfSnapshots = snapshots.filter(s => inklings.some(i => i.snapshotPoint.snapshotId === s.id));
+        setSnapshots(pdfSnapshots);
+        setInklings([]);
     }
   };
 
@@ -322,14 +365,114 @@ export default function Home() {
 
   const deleteSnapshot = React.useCallback((id: string) => {
     setSnapshots(snapshots => snapshots.filter(s => s.id !== id));
+    setInklings(inklings => inklings.filter(i => i.snapshotPoint.snapshotId !== id));
   }, []);
 
-  const handleSnapshotClick = React.useCallback((snapshot: Snapshot) => {
+  const handleSnapshotClick = React.useCallback((snapshot: Snapshot, e: React.MouseEvent<HTMLDivElement>) => {
+    if (pendingInkling) {
+        const target = e.currentTarget;
+        const rect = target.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const newInkling: Inkling = {
+            id: `inkling_${Date.now()}`,
+            pdfPoint: pendingInkling,
+            snapshotPoint: { snapshotId: snapshot.id, x, y },
+        };
+        setInklings(prev => [...prev, newInkling]);
+        setPendingInkling(null);
+        setTool(null);
+        toast({
+            title: "Link Created!",
+            description: "A new link between the PDF and the snapshot has been created.",
+        });
+        e.stopPropagation();
+        return;
+    }
+    
+    setSelectedSnapshot(snapshot.id);
     const pageElement = pdfCanvasRef.current?.getPageElement(snapshot.sourcePage);
     if (pageElement) {
       pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, []);
+  }, [pendingInkling]);
+
+  const handleCanvasClick = (pageIndex: number, point: { x: number; y: number; }) => {
+    if (tool !== 'inkling') return;
+    setPendingInkling({ pageIndex, x: point.x, y: point.y });
+    toast({
+        title: "Link Started",
+        description: "Click on a snapshot in the pinup board to complete the link.",
+    });
+  };
+  
+  const handleDeleteInkling = (id: string) => {
+    setInklings(prev => prev.filter(ink => ink.id !== id));
+  };
+
+  React.useEffect(() => {
+    const mainContainer = mainContainerRef.current;
+    if (!mainContainer) return;
+
+    const pdfView = pdfContainerRef.current?.querySelector('.overflow-y-auto');
+    const pinupView = pinupContainerRef.current?.querySelector('.overflow-auto');
+
+    const updatePaths = () => {
+        if (!mainContainer) return;
+        const mainRect = mainContainer.getBoundingClientRect();
+        
+        const newRenderData: InklingRenderData[] = [];
+        inklings.forEach(inkling => {
+            const pdfPageElement = pdfCanvasRef.current?.getPageElement(inkling.pdfPoint.pageIndex)?.querySelector('canvas');
+            const snapshotElement = pinupContainerRef.current?.querySelector(`[data-snapshot-id="${inkling.snapshotPoint.snapshotId}"]`) as HTMLDivElement;
+            
+            if (pdfPageElement && snapshotElement) {
+                const pdfRect = pdfPageElement.getBoundingClientRect();
+                const snapshotRect = snapshotElement.getBoundingClientRect();
+
+                const startX = pdfRect.left - mainRect.left + inkling.pdfPoint.x;
+                const startY = pdfRect.top - mainRect.top + inkling.pdfPoint.y;
+                const endX = snapshotRect.left - mainRect.left + inkling.snapshotPoint.x;
+                const endY = snapshotRect.top - mainRect.top + inkling.snapshotPoint.y;
+                
+                const pathD = `M ${startX} ${startY} C ${startX + 50} ${startY}, ${endX - 50} ${endY}, ${endX} ${endY}`;
+                newRenderData.push({
+                    id: inkling.id,
+                    path: pathD,
+                    startCircle: { cx: startX, cy: startY },
+                    endCircle: { cx: endX, cy: endY },
+                });
+            }
+        });
+        setInklingRenderData(newRenderData);
+
+        if (pendingInkling) {
+            const pdfPageElement = pdfCanvasRef.current?.getPageElement(pendingInkling.pageIndex)?.querySelector('canvas');
+            if (pdfPageElement) {
+                const pdfRect = pdfPageElement.getBoundingClientRect();
+                const startX = pdfRect.left - mainRect.left + pendingInkling.x;
+                const startY = pdfRect.top - mainRect.top + pendingInkling.y;
+                setPendingInklingRenderPoint({ cx: startX, cy: startY });
+            }
+        } else {
+            setPendingInklingRenderPoint(null);
+        }
+    };
+
+    const throttledUpdate = () => requestAnimationFrame(updatePaths);
+    throttledUpdate();
+
+    window.addEventListener('resize', throttledUpdate);
+    pdfView?.addEventListener('scroll', throttledUpdate);
+    pinupView?.addEventListener('scroll', throttledUpdate);
+    
+    return () => {
+      window.removeEventListener('resize', throttledUpdate);
+      pdfView?.removeEventListener('scroll', throttledUpdate);
+      pinupView?.removeEventListener('scroll', throttledUpdate);
+    };
+  }, [inklings, snapshots, pageImages, pendingInkling]);
 
   const sliderValue = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
   const sliderMin = tool === 'draw' ? 1 : tool === 'highlight' ? 10 : 2;
@@ -338,7 +481,7 @@ export default function Home() {
   return (
     <TooltipProvider delayDuration={100}>
       <div className="flex h-dvh w-full flex-col bg-background text-foreground">
-        <aside className="flex flex-row items-center justify-between gap-4 p-2 border-b bg-card shadow-md z-10">
+        <aside className="flex flex-row items-center justify-between gap-4 p-2 border-b bg-card shadow-md z-30">
             <div className="flex items-center gap-x-2 sm:gap-x-4">
                 <h1 className="font-headline text-xl font-bold px-2 hidden sm:block">Inkling</h1>
                 <div className="flex items-center gap-1">
@@ -394,6 +537,20 @@ export default function Home() {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom"><p>Snapshot</p></TooltipContent>
+                  </Tooltip>
+                   <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={tool === 'inkling' ? 'secondary' : 'ghost'}
+                        size="icon"
+                        onClick={() => handleToolClick('inkling')}
+                        className="h-10 w-10 rounded-lg"
+                        disabled={pageImages.length === 0}
+                      >
+                        <LinkIcon className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Create Link</p></TooltipContent>
                   </Tooltip>
                 </div>
             </div>
@@ -457,7 +614,7 @@ export default function Home() {
             </div>
         </aside>
 
-        {tool && tool !== 'snapshot' && activeCanvas === 'pdf' && (
+        {tool && tool !== 'snapshot' && tool !== 'inkling' && activeCanvas === 'pdf' && (
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-x-8 px-4 py-2 border-b bg-card shadow-sm z-10">
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground whitespace-nowrap">
@@ -515,8 +672,9 @@ export default function Home() {
             </div>
         )}
 
-        <main className="flex-1 flex flex-row overflow-hidden">
+        <main ref={mainContainerRef} className="flex-1 flex flex-row overflow-hidden relative">
           <div 
+            ref={pdfContainerRef}
             className="w-3/5 flex flex-col"
             onMouseDownCapture={() => {
               setActiveCanvas('pdf');
@@ -553,6 +711,7 @@ export default function Home() {
                 initialAnnotations={annotationDataToLoad}
                 toast={toast}
                 onSnapshot={handleSnapshot}
+                onCanvasClick={handleCanvasClick}
               />
             </div>
           </div>
@@ -594,7 +753,7 @@ export default function Home() {
                         snapshot={snapshot}
                         onUpdate={updateSnapshot}
                         onDelete={deleteSnapshot}
-                        onClick={() => handleSnapshotClick(snapshot)}
+                        onClick={(e) => handleSnapshotClick(snapshot, e)}
                         isSelected={selectedSnapshot === snapshot.id}
                         onSelect={() => setSelectedSnapshot(snapshot.id)}
                         containerRef={pinupContainerRef}
@@ -603,6 +762,40 @@ export default function Home() {
                 </div>
               </div>
           </div>
+          <svg className="absolute inset-0 w-full h-full pointer-events-none z-20">
+            {inklingRenderData.map(data => (
+                <g key={data.id} onMouseEnter={() => setHoveredInkling(data.id)} onMouseLeave={() => setHoveredInkling(null)}>
+                    <path d={data.path} stroke="transparent" strokeWidth="15" fill="none" className="pointer-events-stroke" />
+                    <path 
+                        d={data.path} 
+                        stroke={hoveredInkling === data.id ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} 
+                        strokeWidth="2" 
+                        fill="none" 
+                        className="transition-all"
+                    />
+                    <circle cx={data.startCircle.cx} cy={data.startCircle.cy} r="4" fill={hoveredInkling === data.id ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} className="transition-all"/>
+                    <circle cx={data.endCircle.cx} cy={data.endCircle.cy} r="4" fill={hoveredInkling === data.id ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} className="transition-all"/>
+                    
+                    {hoveredInkling === data.id && (
+                      <g className="pointer-events-auto cursor-pointer" onClick={() => handleDeleteInkling(data.id)}>
+                          <circle cx={(data.startCircle.cx + data.endCircle.cx) / 2} cy={(data.startCircle.cy + data.endCircle.cy) / 2} r="10" fill="white" stroke="hsl(var(--destructive))" />
+                          <XCircle x={(data.startCircle.cx + data.endCircle.cx) / 2 - 8} y={(data.startCircle.cy + data.endCircle.cy) / 2 - 8} size={16} className="text-destructive" />
+                      </g>
+                    )}
+                </g>
+            ))}
+            {pendingInklingRenderPoint && (
+                <circle 
+                    cx={pendingInklingRenderPoint.cx} 
+                    cy={pendingInklingRenderPoint.cy} 
+                    r="5" 
+                    fill="hsl(var(--primary))" 
+                    stroke="white"
+                    strokeWidth="2"
+                    className="animate-pulse" 
+                />
+            )}
+          </svg>
         </main>
       </div>
     </TooltipProvider>

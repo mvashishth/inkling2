@@ -38,7 +38,7 @@ export interface DrawingCanvasRef {
 
 interface DrawingCanvasProps {
   pages: string[];
-  tool: 'draw' | 'erase' | 'highlight' | 'snapshot' | null;
+  tool: 'draw' | 'erase' | 'highlight' | 'snapshot' | 'inkling' | null;
   penColor: string;
   penSize: number;
   eraserSize: number;
@@ -48,6 +48,7 @@ interface DrawingCanvasProps {
   initialAnnotations: AnnotationData | null;
   toast: (options: { title: string; description: string; variant?: 'default' | 'destructive' }) => void;
   onSnapshot?: (imageDataUrl: string, pageIndex: number, rect: { x: number; y: number; width: number; height: number }) => void;
+  onCanvasClick?: (pageIndex: number, point: Point) => void;
 }
 
 interface PageProps {
@@ -135,7 +136,7 @@ const Page = React.memo(({
                 className={cn(
                     "absolute inset-0",
                     !tool && 'pointer-events-none',
-                    tool === 'snapshot' && 'cursor-crosshair'
+                    (tool === 'snapshot' || tool === 'inkling') && 'cursor-crosshair'
                 )}
             />
             {currentSelection && currentSelection.pageIndex === index && (
@@ -156,7 +157,7 @@ Page.displayName = 'Page';
 
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange, initialAnnotations, toast, onSnapshot }, ref) => {
+  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange, initialAnnotations, toast, onSnapshot, onCanvasClick }, ref) => {
     const isDrawingRef = useRef(false);
     const hasMovedRef = useRef(false);
 
@@ -415,6 +416,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
     const startDrawing = useCallback((e: React.MouseEvent | React.TouchEvent, pageIndex: number) => {
       if (!tool || ('button' in e && e.button !== 0)) return;
+
+      if (tool === 'inkling') {
+          if (onCanvasClick) {
+              const point = getPoint(e, pageIndex);
+              onCanvasClick(pageIndex, point);
+          }
+          return;
+      }
+      
       e.preventDefault();
       isDrawingRef.current = true;
       hasMovedRef.current = false;
@@ -456,7 +466,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         context.beginPath();
         context.moveTo(point.x, point.y);
       }
-    }, [tool, penColor, penSize, eraserSize, highlighterColor, highlighterSize, updateHistoryButtons, getPoint]);
+    }, [tool, penColor, penSize, eraserSize, highlighterColor, highlighterSize, updateHistoryButtons, getPoint, onCanvasClick]);
     
     useImperativeHandle(ref, () => ({
       initializePages: (numPages: number) => {

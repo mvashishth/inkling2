@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
@@ -19,7 +20,7 @@ interface SnapshotItemProps {
     snapshot: Snapshot;
     onUpdate: (id: string, newProps: Partial<Omit<Snapshot, 'id'>>) => void;
     onDelete: (id:string) => void;
-    onClick: () => void;
+    onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
     isSelected: boolean;
     onSelect: () => void;
     containerRef: React.RefObject<HTMLDivElement>;
@@ -107,17 +108,16 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
         };
     }, [containerRef]);
 
-    const handleBodyClick = useCallback((e: React.MouseEvent) => {
+    const handleBodyClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         e.stopPropagation();
         if (hasMovedRef.current) return;
         
-        // Prevent click action if the resize or delete handle was the target
         if ((e.target as HTMLElement).closest('[aria-label="Resize snapshot"]') || (e.target as HTMLElement).closest('[aria-label="Delete snapshot"]')) {
             return;
         }
 
         onSelect();
-        onClick();
+        onClick(e);
     }, [onSelect, onClick]);
 
     useEffect(() => {
@@ -257,6 +257,7 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             onTouchStart={(e) => handleInteractionStart(e, 'drag')}
             onClick={handleBodyClick}
             data-ai-hint="pdf snapshot"
+            data-snapshot-id={snapshot.id}
         >
              <div className={cn(
                 "w-full h-full border-2",
