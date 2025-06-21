@@ -37,7 +37,7 @@ if (typeof window !== 'undefined') {
 
 type Tool = 'draw' | 'erase' | 'highlight';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
-const DEFAULT_HIGHLIGHTER_COLOR = '#EAB308'; // Using yellow for highlighter as a default
+const DEFAULT_HIGHLIGHTER_COLOR = '#22C55E';
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
     const CHUNK_SIZE = 0x8000;
@@ -57,9 +57,7 @@ export default function Home() {
   const [highlighterColor, setHighlighterColor] = React.useState(DEFAULT_HIGHLIGHTER_COLOR);
   const [eraserSize, setEraserSize] = React.useState(20);
   const [highlighterSize, setHighlighterSize] = React.useState(20);
-  const [canUndo, setCanUndo] = React.useState(false);
-  const [canRedo, setCanRedo] = React.useState(false);
-
+  
   const [pageImages, setPageImages] = React.useState<string[]>([]);
   
   const [isPdfLoading, setIsPdfLoading] = React.useState(false);
@@ -68,20 +66,35 @@ export default function Home() {
   const [originalPdfFileName, setOriginalPdfFileName] = React.useState<string | null>(null);
   const [annotationDataToLoad, setAnnotationDataToLoad] = React.useState<AnnotationData | null>(null);
 
-  const canvasRef = React.useRef<DrawingCanvasRef>(null);
+  const pdfCanvasRef = React.useRef<DrawingCanvasRef>(null);
+  const pinupCanvasRef = React.useRef<DrawingCanvasRef>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const [activeCanvas, setActiveCanvas] = React.useState<'pdf' | 'pinup'>('pdf');
+  
+  const [pdfCanUndo, setPdfCanUndo] = React.useState(false);
+  const [pdfCanRedo, setPdfCanRedo] = React.useState(false);
+  const [pinupCanUndo, setPinupCanUndo] = React.useState(false);
+  const [pinupCanRedo, setPinupCanRedo] = React.useState(false);
+
+  const canUndo = activeCanvas === 'pdf' ? pdfCanUndo : pinupCanUndo;
+  const canRedo = activeCanvas === 'pdf' ? pdfCanRedo : pinupCanRedo;
+  const activeCanvasRef = activeCanvas === 'pdf' ? pdfCanvasRef : pinupCanvasRef;
 
   const handleToolClick = (selectedTool: Tool) => {
     setTool((currentTool) => (currentTool === selectedTool ? null : selectedTool));
   };
 
   const handleExport = () => {
-    const exportData = canvasRef.current?.exportAsDataURL();
+    const exportData = activeCanvasRef.current?.exportAsDataURL();
     if (exportData?.dataUrl) {
       const link = document.createElement('a');
       link.href = exportData.dataUrl;
-      link.download = `inkling-drawing-page-${exportData.pageNum}.png`;
+      const fileName = activeCanvas === 'pdf'
+        ? `inkling-drawing-page-${exportData.pageNum}.png`
+        : 'inkling-pinup-board.png';
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -97,14 +110,13 @@ export default function Home() {
         });
         return;
     }
-    const annotationData = canvasRef.current?.getAnnotationData();
+    const annotationData = pdfCanvasRef.current?.getAnnotationData();
     if (!annotationData) return;
     
     const defaultFileName = originalPdfFileName ? originalPdfFileName.replace(/\.pdf$/i, '') : 'annotated-project';
     const chosenFileName = window.prompt("Enter filename for your project:", defaultFileName);
 
     if (!chosenFileName) {
-        // User cancelled the prompt
         return;
     }
 
@@ -129,9 +141,14 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
-  const handleHistoryChange = (canUndo: boolean, canRedo: boolean) => {
-    setCanUndo(canUndo);
-    setCanRedo(canRedo);
+  const handlePdfHistoryChange = (canUndo: boolean, canRedo: boolean) => {
+    setPdfCanUndo(canUndo);
+    setPdfCanRedo(canRedo);
+  };
+
+  const handlePinupHistoryChange = (canUndo: boolean, canRedo: boolean) => {
+    setPinupCanUndo(canUndo);
+    setPinupCanRedo(canRedo);
   };
 
   const handleSliderChange = (value: number[]) => {
@@ -152,17 +169,15 @@ export default function Home() {
     setIsPdfLoading(true);
     setPdfLoadProgress(0);
     setPageImages([]);
-    canvasRef.current?.clear();
+    pdfCanvasRef.current?.clear();
 
     try {
       const loadingTask = pdfjsLib.getDocument(arrayBuffer);
-      loadingTask.onProgress = (progressData) => {
-        // This progress is for download, we'll manually update for rendering
-      };
+      loadingTask.onProgress = (progressData) => {};
       
       const pdf = await loadingTask.promise;
       const numPages = pdf.numPages;
-      canvasRef.current?.initializePages(numPages);
+      pdfCanvasRef.current?.initializePages(numPages);
 
       const newPageImages: string[] = [];
       
@@ -194,7 +209,6 @@ export default function Home() {
       setIsPdfLoading(false);
     }
   }
-
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -249,11 +263,15 @@ export default function Home() {
   };
   
   const handleClear = () => {
-    canvasRef.current?.clear();
-    setPageImages([]);
-    setOriginalPdfFile(null);
-    setOriginalPdfFileName(null);
-    setAnnotationDataToLoad(null);
+    if (activeCanvas === 'pdf') {
+        pdfCanvasRef.current?.clear();
+        setPageImages([]);
+        setOriginalPdfFile(null);
+        setOriginalPdfFileName(null);
+        setAnnotationDataToLoad(null);
+    } else {
+        pinupCanvasRef.current?.clear();
+    }
   };
 
   const sliderValue = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
@@ -313,7 +331,7 @@ export default function Home() {
                 <div className="flex items-center gap-1">
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.undo()} disabled={!canUndo} className="h-10 w-10 rounded-lg">
+                      <Button variant="ghost" size="icon" onClick={() => activeCanvasRef.current?.undo()} disabled={!canUndo} className="h-10 w-10 rounded-lg">
                         <Undo className="h-5 w-5" />
                       </Button>
                     </TooltipTrigger>
@@ -321,7 +339,7 @@ export default function Home() {
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.redo()} disabled={!canRedo} className="h-10 w-10 rounded-lg">
+                      <Button variant="ghost" size="icon" onClick={() => activeCanvasRef.current?.redo()} disabled={!canRedo} className="h-10 w-10 rounded-lg">
                         <Redo className="h-5 w-5" />
                       </Button>
                     </TooltipTrigger>
@@ -426,34 +444,63 @@ export default function Home() {
             </div>
         )}
 
-        <main className="flex-1 relative bg-background overflow-auto">
-          {isPdfLoading && (
-            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
-                <p className="mb-4 text-lg font-medium">{'Loading PDF...'}</p>
-                <Progress value={pdfLoadProgress} className="w-1/2 max-w-sm" />
-                <p className="mt-2 text-sm text-muted-foreground">{pdfLoadProgress}%</p>
+        <main className="flex-1 flex flex-row overflow-hidden">
+          <div className="w-3/5 flex flex-col">
+            <div 
+              className="flex-1 relative bg-background overflow-auto"
+              onMouseDownCapture={() => setActiveCanvas('pdf')}
+            >
+              {isPdfLoading && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
+                    <p className="mb-4 text-lg font-medium">{'Loading PDF...'}</p>
+                    <Progress value={pdfLoadProgress} className="w-1/2 max-w-sm" />
+                    <p className="mt-2 text-sm text-muted-foreground">{pdfLoadProgress}%</p>
+                </div>
+              )}
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                accept="application/pdf,application/json"
+                className="hidden"
+              />
+              <DrawingCanvas
+                ref={pdfCanvasRef}
+                pages={pageImages}
+                tool={tool}
+                penColor={penColor}
+                penSize={penSize}
+                eraserSize={eraserSize}
+                highlighterSize={highlighterSize}
+                highlighterColor={highlighterColor}
+                onHistoryChange={handlePdfHistoryChange}
+                initialAnnotations={annotationDataToLoad}
+                toast={toast}
+              />
             </div>
-          )}
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            accept="application/pdf,application/json"
-            className="hidden"
-          />
-          <DrawingCanvas
-            ref={canvasRef}
-            pages={pageImages}
-            tool={tool}
-            penColor={penColor}
-            penSize={penSize}
-            eraserSize={eraserSize}
-            highlighterSize={highlighterSize}
-            highlighterColor={highlighterColor}
-            onHistoryChange={handleHistoryChange}
-            initialAnnotations={annotationDataToLoad}
-            toast={toast}
-          />
+          </div>
+          <Separator orientation="vertical" className="h-full" />
+          <div className="w-2/5 flex flex-col">
+              <header className="p-2 text-center font-semibold bg-card border-b">Pinup Board</header>
+              <div 
+                className="flex-1 relative bg-background overflow-auto"
+                onMouseDownCapture={() => setActiveCanvas('pinup')}
+              >
+                <DrawingCanvas
+                    ref={pinupCanvasRef}
+                    pages={[]}
+                    tool={tool}
+                    penColor={penColor}
+                    penSize={penSize}
+                    eraserSize={eraserSize}
+                    highlighterSize={highlighterSize}
+                    highlighterColor={highlighterColor}
+                    onHistoryChange={handlePinupHistoryChange}
+                    initialAnnotations={null}
+                    toast={toast}
+                />
+              </div>
+          </div>
         </main>
       </div>
     </TooltipProvider>
