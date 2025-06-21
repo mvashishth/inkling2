@@ -1,3 +1,209 @@
+"use client";
+
+import * as React from 'react';
+import {
+  Pencil,
+  Eraser,
+  Download,
+  Wand2,
+  Undo,
+  Redo,
+  Trash2,
+} from 'lucide-react';
+import { DrawingCanvas, type DrawingCanvasRef } from '@/components/drawing-canvas';
+import { StylizedPreview } from '@/components/stylized-preview';
+import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
+import { Separator } from '@/components/ui/separator';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { stylizeDrawing } from '@/ai/flows/stylize-drawing';
+import { useToast } from '@/hooks/use-toast';
+
+type Tool = 'draw' | 'erase';
+
 export default function Home() {
-  return <></>;
+  const [tool, setTool] = React.useState<Tool>('draw');
+  const [eraserSize, setEraserSize] = React.useState(20);
+  const [stylizedImage, setStylizedImage] = React.useState<string | null>(null);
+  const [isStylizing, setIsStylizing] = React.useState(false);
+  const [canUndo, setCanUndo] = React.useState(false);
+  const [canRedo, setCanRedo] = React.useState(false);
+
+  const canvasRef = React.useRef<DrawingCanvasRef>(null);
+  const { toast } = useToast();
+
+  const handleStylize = async () => {
+    const dataUrl = canvasRef.current?.exportAsDataURL();
+    if (!dataUrl || dataUrl.length < 100) { // Check for empty canvas
+      toast({
+        title: 'Empty Canvas',
+        description: 'Please draw something before stylizing.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsStylizing(true);
+    setStylizedImage(null);
+    try {
+      const result = await stylizeDrawing({ drawingDataUri: dataUrl });
+      setStylizedImage(result.stylizedDrawingDataUri);
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: 'Stylization Failed',
+        description: 'The AI could not process your drawing. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsStylizing(false);
+    }
+  };
+
+  const handleExport = () => {
+    const dataUrl = canvasRef.current?.exportAsDataURL();
+    if (dataUrl) {
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = 'inkling-drawing.png';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handleAdopt = () => {
+    if (stylizedImage) {
+      canvasRef.current?.loadImage(stylizedImage);
+      setStylizedImage(null);
+    }
+  };
+
+  const handleHistoryChange = (canUndo: boolean, canRedo: boolean) => {
+    setCanUndo(canUndo);
+    setCanRedo(canRedo);
+  }
+
+  return (
+    <TooltipProvider delayDuration={100}>
+      <div className="flex h-dvh w-full flex-col md:flex-row bg-background text-foreground overflow-hidden">
+        <aside className="w-full md:w-24 flex flex-row md:flex-col items-center gap-4 p-2 md:p-4 border-b md:border-r bg-card shadow-md md:shadow-lg">
+          <div className="flex flex-row md:flex-col items-center gap-2 md:gap-4">
+            <h1 className="font-headline text-2xl font-bold hidden md:block">Inkling</h1>
+            <div className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={tool === 'draw' ? 'secondary' : 'ghost'}
+                    size="icon"
+                    onClick={() => setTool('draw')}
+                    className="h-12 w-12 rounded-lg data-[state=active]:bg-accent"
+                  >
+                    <Pencil className="h-6 w-6" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right"><p>Draw</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={tool === 'erase' ? 'secondary' : 'ghost'}
+                    size="icon"
+                    onClick={() => setTool('erase')}
+                    className="h-12 w-12 rounded-lg data-[state=active]:bg-accent"
+                  >
+                    <Eraser className="h-6 w-6" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right"><p>Eraser</p></TooltipContent>
+              </Tooltip>
+            </div>
+            {tool === 'erase' && (
+              <div className="w-24 md:w-full flex items-center justify-center p-2 rounded-md bg-muted/50">
+                <Slider
+                  defaultValue={[eraserSize]}
+                  max={100}
+                  min={2}
+                  step={1}
+                  onValueChange={(value) => setEraserSize(value[0])}
+                  className="[&>span:first-child]:h-1"
+                  orientation="vertical"
+                />
+              </div>
+            )}
+            <Separator className="hidden md:block" />
+            <div className="flex items-center gap-2">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.undo()} disabled={!canUndo} className="h-12 w-12 rounded-lg">
+                    <Undo className="h-6 w-6" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right"><p>Undo</p></TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.redo()} disabled={!canRedo} className="h-12 w-12 rounded-lg">
+                    <Redo className="h-6 w-6" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right"><p>Redo</p></TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
+
+          <div className="flex flex-row md:flex-col items-center gap-2 ml-auto md:ml-0 md:mt-auto">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.clear()} className="h-12 w-12 rounded-lg">
+                  <Trash2 className="h-6 w-6 text-destructive" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right"><p>Clear Canvas</p></TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={handleStylize} disabled={isStylizing} className="h-12 w-12 rounded-lg">
+                  <Wand2 className="h-6 w-6" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right"><p>AI Stylize</p></TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={handleExport} className="h-12 w-12 rounded-lg">
+                  <Download className="h-6 w-6" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right"><p>Export as PNG</p></TooltipContent>
+            </Tooltip>
+          </div>
+        </aside>
+
+        <main className="flex-1 relative bg-background overflow-auto">
+          <DrawingCanvas
+            ref={canvasRef}
+            tool={tool}
+            eraserSize={eraserSize}
+            onHistoryChange={handleHistoryChange}
+          />
+          {(isStylizing || stylizedImage) && (
+            <div className="absolute bottom-4 right-4">
+              <StylizedPreview
+                isLoading={isStylizing}
+                imageDataUrl={stylizedImage}
+                onAdopt={handleAdopt}
+                onDismiss={() => setStylizedImage(null)}
+              />
+            </div>
+          )}
+        </main>
+      </div>
+    </TooltipProvider>
+  );
 }
