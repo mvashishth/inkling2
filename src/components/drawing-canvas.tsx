@@ -535,7 +535,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         }
         
         const activePage = lastActivePageRef.current;
-        saveState(activePage);
         updateHistoryButtons(activePage);
       },
       undo: () => {
