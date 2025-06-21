@@ -15,6 +15,8 @@ import {
   Link as LinkIcon,
   XCircle,
   StickyNote,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DrawingCanvas, type DrawingCanvasRef, type AnnotationData } from '@/components/drawing-canvas';
@@ -110,6 +112,7 @@ export default function Home() {
   const mainContainerRef = React.useRef<HTMLDivElement>(null);
   const pdfContainerRef = React.useRef<HTMLDivElement>(null);
   const pinupContainerRef = React.useRef<HTMLDivElement>(null);
+  const pinupScrollContainerRef = React.useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const [activeCanvas, setActiveCanvas] = React.useState<'pdf' | 'pinup'>('pdf');
@@ -134,6 +137,7 @@ export default function Home() {
   const [isClearConfirmOpen, setIsClearConfirmOpen] = React.useState(false);
   const [viewerWidth, setViewerWidth] = React.useState(40);
   const [pinupBgColor, setPinupBgColor] = React.useState('#ffffff');
+  const [isPinupScrollLocked, setIsPinupScrollLocked] = React.useState(false);
 
   const canUndo = activeCanvas === 'pdf' ? pdfCanUndo : pinupCanUndo;
   const canRedo = activeCanvas === 'pdf' ? pdfCanRedo : pinupCanRedo;
@@ -513,7 +517,7 @@ export default function Home() {
     if (!mainContainer) return;
 
     const pdfView = pdfContainerRef.current?.querySelector('.overflow-y-auto');
-    const pinupView = pinupContainerRef.current?.querySelector('.overflow-auto');
+    const pinupView = pinupScrollContainerRef.current;
 
     const updatePaths = () => {
         if (!mainContainer) return;
@@ -876,9 +880,28 @@ export default function Home() {
                           </Tooltip>
                       ))}
                   </div>
+                   <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setIsPinupScrollLocked(prev => !prev)}
+                                className="h-8 w-8 rounded-lg"
+                            >
+                                {isPinupScrollLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                            <p>{isPinupScrollLocked ? 'Unlock Scroll' : 'Lock Scroll'}</p>
+                        </TooltipContent>
+                    </Tooltip>
               </header>
               <div 
-                className="flex-1 relative overflow-auto"
+                ref={pinupScrollContainerRef}
+                className={cn(
+                  "flex-1 relative",
+                  isPinupScrollLocked ? 'overflow-y-hidden' : 'overflow-y-auto overflow-x-hidden'
+                )}
                 style={{ backgroundColor: pinupBgColor }}
                 onMouseDownCapture={(e) => {
                   if (e.target === e.currentTarget) {
@@ -890,7 +913,7 @@ export default function Home() {
               >
                 <div
                     ref={pinupContainerRef}
-                    className="relative w-full h-full p-[1%]"
+                    className="relative w-full h-[200%] p-[1%]"
                     onMouseDownCapture={() => {
                         setActiveCanvas('pinup');
                     }}
