@@ -71,14 +71,14 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 
 interface PdfPoint {
   pageIndex: number;
-  x: number;
-  y: number;
+  relX: number;
+  relY: number;
 }
 interface PinupPoint {
     targetId: string;
     targetType: 'snapshot' | 'note' | 'image';
-    x: number;
-    y: number;
+    relX: number;
+    relY: number;
 }
 export interface Inkling {
   id: string;
@@ -500,7 +500,12 @@ export default function Home() {
         const newInkling: Inkling = {
             id: `inkling_${Date.now()}`,
             pdfPoint: pendingInkling,
-            pinupPoint: { targetId: snapshot.id, targetType: 'snapshot', x, y },
+            pinupPoint: { 
+                targetId: snapshot.id, 
+                targetType: 'snapshot', 
+                relX: x / rect.width,
+                relY: y / rect.height
+            },
         };
         setInklings(prev => [...prev, newInkling]);
         setPendingInkling(null);
@@ -520,12 +525,11 @@ export default function Home() {
     const pageElement = pdfCanvasRef.current?.getPageElement(snapshot.sourcePage);
     if (pageElement && scrollContainer) {
       const containerRect = scrollContainer.getBoundingClientRect();
-      const pageRect = pageElement.getBoundingClientRect();
       
       const rectCenterY_relative = snapshot.sourceRect.y + (snapshot.sourceRect.height / 2);
-      const rectCenterY_absolute = pageRect.top - containerRect.top + scrollContainer.scrollTop;
+      const pointY_absolute = pageElement.offsetTop + rectCenterY_relative;
 
-      const targetScrollTop = rectCenterY_absolute - (containerRect.height / 2);
+      const targetScrollTop = pointY_absolute - (containerRect.height / 2);
 
       scrollContainer.scrollTo({
         top: targetScrollTop,
@@ -548,7 +552,12 @@ export default function Home() {
         const newInkling: Inkling = {
           id: `inkling_${Date.now()}`,
           pdfPoint: pendingInkling,
-          pinupPoint: { targetId: note.id, targetType: 'note', x, y },
+          pinupPoint: { 
+              targetId: note.id, 
+              targetType: 'note', 
+              relX: x / rect.width,
+              relY: y / rect.height
+          },
         };
         setInklings(prev => [...prev, newInkling]);
         setPendingInkling(null);
@@ -577,7 +586,12 @@ export default function Home() {
         const newInkling: Inkling = {
             id: `inkling_${Date.now()}`,
             pdfPoint: pendingInkling,
-            pinupPoint: { targetId: image.id, targetType: 'image', x, y },
+            pinupPoint: { 
+                targetId: image.id, 
+                targetType: 'image', 
+                relX: x / rect.width,
+                relY: y / rect.height
+            },
         };
         setInklings(prev => [...prev, newInkling]);
         setPendingInkling(null);
@@ -595,9 +609,13 @@ export default function Home() {
     setSelectedNote(null);
   }, [pendingInkling, toast]);
 
-  const handleCanvasClick = (pageIndex: number, point: { x: number; y: number; }) => {
+  const handleCanvasClick = (pageIndex: number, point: { x: number; y: number; }, canvas: HTMLCanvasElement) => {
     if (tool !== 'inkling') return;
-    setPendingInkling({ pageIndex, x: point.x, y: point.y });
+    setPendingInkling({ 
+        pageIndex, 
+        relX: point.x / canvas.width, 
+        relY: point.y / canvas.height,
+    });
     toast({
         title: "Link Started",
         description: "Click on a snapshot, a note's header, or an image in the pinup board to complete the link.",
@@ -613,15 +631,16 @@ export default function Home() {
       const pageElement = pdfCanvasRef.current?.getPageElement(inkling.pdfPoint.pageIndex);
       if (pageElement && scrollContainer) {
         const containerRect = scrollContainer.getBoundingClientRect();
+        const pageRect = pageElement.getBoundingClientRect();
         
-        const pointY_relative = inkling.pdfPoint.y; 
-        const pointY_absolute = pageElement.offsetTop + pointY_relative;
+        const pointY_relative_pixels = inkling.pdfPoint.relY * pageRect.height; 
+        const pointY_absolute = pageElement.offsetTop + pointY_relative_pixels;
         const targetScrollTop = pointY_absolute - (containerRect.height / 2);
 
         scrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
       }
     } else { // 'pdf' endpoint clicked, go to pinup item
-      const { targetId, targetType, y } = inkling.pinupPoint;
+      const { targetId, targetType, relY } = inkling.pinupPoint;
       const selector = targetType === 'snapshot' 
         ? `[data-snapshot-id="${targetId}"]` 
         : targetType === 'note'
@@ -633,9 +652,10 @@ export default function Home() {
       
       if (pinupElement && pinupScrollContainer) {
         const containerRect = pinupScrollContainer.getBoundingClientRect();
+        const pinupElementRect = pinupElement.getBoundingClientRect();
 
-        const pointY_relative = y;
-        const pointY_absolute = pinupElement.offsetTop + pointY_relative;
+        const pointY_relative_pixels = relY * pinupElementRect.height;
+        const pointY_absolute = pinupElement.offsetTop + pointY_relative_pixels;
         const targetScrollTop = pointY_absolute - (containerRect.height / 2);
 
         pinupScrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
@@ -682,7 +702,7 @@ export default function Home() {
         const newRenderData: InklingRenderData[] = [];
         inklings.forEach(inkling => {
             const pdfPageElement = pdfCanvasRef.current?.getPageElement(inkling.pdfPoint.pageIndex)?.querySelector('canvas');
-            const { targetId, targetType, x, y } = inkling.pinupPoint;
+            const { targetId, targetType, relX: pinupRelX, relY: pinupRelY } = inkling.pinupPoint;
             const selector = targetType === 'snapshot'
                 ? `[data-snapshot-id="${targetId}"]`
                 : targetType === 'note' 
@@ -694,10 +714,16 @@ export default function Home() {
                 const pdfRect = pdfPageElement.getBoundingClientRect();
                 const pinupRect = pinupElement.getBoundingClientRect();
 
-                const startX = pdfRect.left - mainRect.left + inkling.pdfPoint.x;
-                const startY = pdfRect.top - mainRect.top + inkling.pdfPoint.y;
-                const endX = pinupRect.left - mainRect.left + x;
-                const endY = pinupRect.top - mainRect.top + y;
+                const startX_abs = inkling.pdfPoint.relX * pdfRect.width;
+                const startY_abs = inkling.pdfPoint.relY * pdfRect.height;
+
+                const endX_abs = pinupRelX * pinupRect.width;
+                const endY_abs = pinupRelY * pinupRect.height;
+
+                const startX = pdfRect.left - mainRect.left + startX_abs;
+                const startY = pdfRect.top - mainRect.top + startY_abs;
+                const endX = pinupRect.left - mainRect.left + endX_abs;
+                const endY = pinupRect.top - mainRect.top + endY_abs;
                 
                 const pathD = `M ${startX} ${startY} C ${startX + 50} ${startY}, ${endX - 50} ${endY}, ${endX} ${endY}`;
                 newRenderData.push({
@@ -714,8 +740,12 @@ export default function Home() {
             const pdfPageElement = pdfCanvasRef.current?.getPageElement(pendingInkling.pageIndex)?.querySelector('canvas');
             if (pdfPageElement) {
                 const pdfRect = pdfPageElement.getBoundingClientRect();
-                const startX = pdfRect.left - mainRect.left + pendingInkling.x;
-                const startY = pdfRect.top - mainRect.top + pendingInkling.y;
+                
+                const pendingX_abs = pendingInkling.relX * pdfRect.width;
+                const pendingY_abs = pendingInkling.relY * pdfRect.height;
+
+                const startX = pdfRect.left - mainRect.left + pendingX_abs;
+                const startY = pdfRect.top - mainRect.top + pendingY_abs;
                 setPendingInklingRenderPoint({ cx: startX, cy: startY });
             }
         } else {

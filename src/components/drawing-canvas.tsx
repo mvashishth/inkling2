@@ -52,7 +52,7 @@ interface DrawingCanvasProps {
   toast: (options: { title: string; description: string; variant?: 'default' | 'destructive' }) => void;
   onSnapshot?: (imageDataUrl: string, pageIndex: number, rect: { x: number; y: number; width: number; height: number }) => void;
   onNoteCreate?: (rect: { x: number; y: number; width: number; height: number }) => void;
-  onCanvasClick?: (pageIndex: number, point: Point) => void;
+  onCanvasClick?: (pageIndex: number, point: Point, canvas: HTMLCanvasElement) => void;
 }
 
 interface PageProps {
@@ -450,7 +450,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       if (tool === 'inkling') {
           if (onCanvasClick) {
               const point = getPoint(e, pageIndex);
-              onCanvasClick(pageIndex, point);
+              const canvas = drawingCanvasRefs.current[pageIndex];
+              if (canvas) {
+                onCanvasClick(pageIndex, point, canvas);
+              }
           }
           return;
       }
@@ -543,13 +546,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         
         pageHistoryRef.current.clear();
         pageHistoryIndexRef.current.clear();
-
+        
+        const activePage = lastActivePageRef.current;
         if (pages.length === 0) {
             pageHistoryRef.current.set(0, []);
             pageHistoryIndexRef.current.set(0, -1);
+            saveState(0);
         }
-        
-        const activePage = lastActivePageRef.current;
         updateHistoryButtons(activePage);
       },
       undo: () => {
