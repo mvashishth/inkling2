@@ -98,44 +98,50 @@ export default function Home() {
               </Tooltip>
             </div>
             
-            <div className="w-32 md:w-full flex flex-col items-center justify-center p-2 rounded-md bg-muted/50 gap-2">
-              <div className="w-full flex justify-between text-xs text-muted-foreground px-1">
-                <span>{tool === 'draw' ? 'Width' : 'Size'}</span>
-                <span>{sliderValue}</span>
+            <div className="w-auto md:w-full flex flex-col items-stretch justify-center p-2 rounded-lg bg-muted/50 gap-3">
+              <div className="flex flex-col items-center gap-2 px-1">
+                <div className="w-full flex justify-between text-xs text-muted-foreground">
+                  <span>{tool === 'draw' ? 'Width' : 'Size'}</span>
+                  <span>{sliderValue}</span>
+                </div>
+                <Slider
+                  value={[sliderValue]}
+                  max={sliderMax}
+                  min={sliderMin}
+                  step={1}
+                  onValueChange={handleSliderChange}
+                  className="w-28 md:w-full"
+                />
               </div>
-              <Slider
-                value={[sliderValue]}
-                max={sliderMax}
-                min={sliderMin}
-                step={1}
-                onValueChange={handleSliderChange}
-              />
-            </div>
 
-            {tool === 'draw' && (
-              <div className="flex flex-row flex-wrap justify-center gap-2 pt-2 md:w-full md:max-w-[5rem]">
-                {COLORS.map((color) => (
-                  <Tooltip key={color}>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={() => setPenColor(color)}
-                        className={cn(
-                          'h-7 w-7 rounded-full border-2 transition-all hover:scale-110',
-                          penColor === color
-                            ? 'border-primary'
-                            : 'border-muted-foreground/20'
-                        )}
-                        style={{ backgroundColor: color }}
-                        aria-label={`Set pen color to ${color}`}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      <p>{color.toUpperCase()}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                ))}
-              </div>
-            )}
+              {tool === 'draw' && (
+                <>
+                  <Separator className="bg-muted-foreground/20" />
+                  <div className="flex flex-row flex-wrap justify-center gap-2">
+                    {COLORS.map((color) => (
+                      <Tooltip key={color}>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => setPenColor(color)}
+                            className={cn(
+                              'h-7 w-7 rounded-full border-2 transition-all hover:scale-110',
+                              penColor === color
+                                ? 'border-primary'
+                                : 'border-muted-foreground/20'
+                            )}
+                            style={{ backgroundColor: color }}
+                            aria-label={`Set pen color to ${color}`}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent side="right">
+                          <p>{color.toUpperCase()}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
             
             <Separator className="hidden md:block" />
             <div className="flex items-center gap-2">
