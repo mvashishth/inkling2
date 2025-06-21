@@ -30,21 +30,53 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
         type: 'drag' | 'resize';
         startX: number;
         startY: number;
+        noteX: number;
+        noteY: number;
+        noteWidth: number;
+        noteHeight: number;
     } | null>(null);
+    const isInteractingRef = useRef(false);
+    const hasMovedRef = useRef(false);
+    const lastPointRef = useRef<{clientX: number, clientY: number} | null>(null);
     
+    useEffect(() => {
+        if (isInteractingRef.current || !containerRef.current || !itemRef.current) return;
+        
+        const { id, x, y, width, height } = note;
+        const container = containerRef.current;
+        const padding = container.clientWidth * 0.01;
+        const containerWidth = container.clientWidth - 2 * padding;
+        const containerHeight = container.clientHeight - 2 * padding;
+
+        let newX = x;
+        let newY = y;
+        let newWidth = Math.max(100, width);
+        let newHeight = Math.max(80, height);
+
+        if (newWidth > containerWidth) {
+          newWidth = containerWidth;
+        }
+      
+        newX = Math.max(0, Math.min(newX, containerWidth - newWidth));
+        newY = Math.max(0, Math.min(newY, containerHeight - newHeight));
+        
+        if (Math.abs(newX - x) > 1 || Math.abs(newY - y) > 1 || Math.abs(newWidth - width) > 1 || Math.abs(newHeight - height) > 1) {
+          onUpdate(id, { x: newX, y: newY, width: newWidth, height: newHeight });
+        }
+      }, [note, containerRef, onUpdate]);
+
     const getEventPoint = (e: MouseEvent | TouchEvent) => {
         const point = 'touches' in e ? (e.touches[0] || e.changedTouches[0]) : e;
+        if (!point) return null;
         return { clientX: point.clientX, clientY: point.clientY };
     };
 
     const handleInteractionStart = useCallback((e: React.MouseEvent | React.TouchEvent, type: 'drag' | 'resize') => {
-        if (!containerRef.current) return;
-        
         const target = e.target as HTMLElement;
-        const isResizeHandle = target.closest('[aria-label="Resize note"]');
-        const isDeleteHandle = target.closest('[aria-label="Delete note"]');
-
-        if (type === 'drag' && (isResizeHandle || isDeleteHandle)) {
+        if (target.closest('textarea') || target.closest('[aria-label="Delete note"]')) {
+          return;
+        }
+        if (type === 'drag' && target.closest('[aria-label="Resize note"]')) {
             return;
         }
 
@@ -52,118 +84,145 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
         if ('button' in e && e.button !== 0) return;
 
         const point = getEventPoint(e.nativeEvent);
+        if (!point || !containerRef.current) return;
 
-        interactionRef.current = {
-            type: type,
-            startX: point.clientX,
-            startY: point.clientY,
-        };
+        isInteractingRef.current = true;
+        hasMovedRef.current = false;
+        lastPointRef.current = point;
         
+        if(itemRef.current) {
+            const rect = itemRef.current.getBoundingClientRect();
+            const containerRect = containerRef.current.getBoundingClientRect();
+            interactionRef.current = {
+                type: type,
+                startX: point.clientX,
+                startY: point.clientY,
+                noteX: rect.left - containerRect.left,
+                noteY: rect.top - containerRect.top,
+                noteWidth: rect.width,
+                noteHeight: rect.height,
+            };
+        }
+    }, [containerRef]);
+
+    const handleBodyClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        e.stopPropagation();
+        if (hasMovedRef.current) return;
+        
+        const target = e.target as HTMLElement;
+        if(target.closest('[aria-label="Resize note"]') || target.closest('[aria-label="Delete note"]') || target.closest('textarea')) {
+            return;
+        }
         onSelect();
+    }, [onSelect]);
 
+
+    useEffect(() => {
         const handleMove = (e: MouseEvent | TouchEvent) => {
-            if (e.cancelable) e.preventDefault();
-            const { clientX, clientY } = getEventPoint(e);
-            
-            requestAnimationFrame(() => {
-                if (!interactionRef.current || !itemRef.current) return;
-                
-                const dx = clientX - interactionRef.current.startX;
-                const dy = clientY - interactionRef.current.startY;
-                const { type } = interactionRef.current;
-                
-                const currentX = parseFloat(itemRef.current.style.getPropertyValue('--x'));
-                const currentY = parseFloat(itemRef.current.style.getPropertyValue('--y'));
-                const currentWidth = parseFloat(itemRef.current.style.getPropertyValue('--w'));
-                const currentHeight = parseFloat(itemRef.current.style.getPropertyValue('--h'));
+            if (!isInteractingRef.current) return;
 
-                if (type === 'drag') {
-                    itemRef.current.style.transform = `translate(${currentX + dx}px, ${currentY + dy}px)`;
-                } else if (type === 'resize') {
-                    itemRef.current.style.width = `${Math.max(100, currentWidth + dx)}px`;
-                    itemRef.current.style.height = `${Math.max(80, currentHeight + dy)}px`;
+            const point = getEventPoint(e);
+            if (!point || !interactionRef.current) return;
+            
+            if (e.cancelable) e.preventDefault();
+
+            if (!hasMovedRef.current) {
+                const dx = Math.abs(point.clientX - interactionRef.current.startX);
+                const dy = Math.abs(point.clientY - interactionRef.current.startY);
+                if (dx > 3 || dy > 3) {
+                    hasMovedRef.current = true;
+                    onSelect();
                 }
-            });
+            }
+
+            if (itemRef.current) {
+                const dx = point.clientX - interactionRef.current.startX;
+                const dy = point.clientY - interactionRef.current.startY;
+
+                if (interactionRef.current.type === 'drag') {
+                    const x = interactionRef.current.noteX + dx;
+                    const y = interactionRef.current.noteY + dy;
+                    itemRef.current.style.transform = `translate(${x}px, ${y}px)`;
+                } else if (interactionRef.current.type === 'resize') {
+                    const { noteX, noteY, noteWidth, noteHeight } = interactionRef.current;
+                    const newWidth = Math.max(100, noteWidth + dx);
+                    const newHeight = Math.max(80, noteHeight + dy);
+
+                    itemRef.current.style.transform = `translate(${noteX}px, ${noteY}px)`;
+                    itemRef.current.style.width = `${newWidth}px`;
+                    itemRef.current.style.height = `${newHeight}px`;
+                }
+            }
+            lastPointRef.current = point;
         };
 
         const handleEnd = (e: MouseEvent | TouchEvent) => {
-            if (e.cancelable) e.preventDefault();
-            document.removeEventListener('mousemove', handleMove);
-            document.removeEventListener('mouseup', handleEnd);
-            document.removeEventListener('touchmove', handleMove);
-            document.removeEventListener('touchend', handleEnd);
+            if (!isInteractingRef.current) return;
 
-            if (!interactionRef.current || !containerRef.current) return;
+            const interaction = interactionRef.current;
+            if (!interaction) return;
 
-            const { clientX, clientY } = getEventPoint(e);
-            const dx = clientX - interactionRef.current.startX;
-            const dy = clientY - interactionRef.current.startY;
-            const { type } = interactionRef.current;
-            
-            const padding = containerRef.current.clientWidth * 0.01;
-            const containerWidth = containerRef.current.clientWidth - 2 * padding;
-            const containerHeight = containerRef.current.clientHeight - 2 * padding;
+            if (hasMovedRef.current) {
+                e.stopPropagation();
+                
+                const point = lastPointRef.current ?? getEventPoint(e);
+                if (!point || !containerRef.current) return;
+                
+                const dx = point.clientX - interaction.startX;
+                const dy = point.clientY - interaction.startY;
+                
+                const container = containerRef.current;
+                const padding = container.clientWidth * 0.01;
+                const containerWidth = container.clientWidth - 2 * padding;
+                const containerHeight = container.clientHeight - 2 * padding;
 
-            let newX = note.x;
-            let newY = note.y;
-            let newWidth = note.width;
-            let newHeight = note.height;
+                let newX = interaction.noteX;
+                let newY = interaction.noteY;
+                let newWidth = interaction.noteWidth;
+                let newHeight = interaction.noteHeight;
 
-            if (type === 'drag') {
-                newX += dx;
-                newY += dy;
-            } else if (type === 'resize') {
-                newWidth = Math.max(100, newWidth + dx);
-                newHeight = Math.max(80, newHeight + dy);
+                if (interaction.type === 'drag') {
+                    newX += dx;
+                    newY += dy;
+                } else if (interaction.type === 'resize') {
+                    newWidth = Math.max(100, interaction.noteWidth + dx);
+                    newHeight = Math.max(80, interaction.noteHeight + dy);
+                }
+                
+                newX = Math.max(0, Math.min(newX, containerWidth - newWidth));
+                newY = Math.max(0, Math.min(newY, containerHeight - newHeight));
+                
+                onUpdate(note.id, { x: newX, y: newY, width: newWidth, height: newHeight });
+
+            } else {
+                 if (interaction.type === 'resize') {
+                    e.stopPropagation();
+                }
             }
             
-            newX = Math.max(0, Math.min(newX, containerWidth - newWidth));
-            newY = Math.max(0, Math.min(newY, containerHeight - newHeight));
+            if (itemRef.current) {
+                itemRef.current.style.transform = `translate(${note.x}px, ${note.y}px)`;
+                itemRef.current.style.width = `${note.width}px`;
+                itemRef.current.style.height = `${note.height}px`;
+            }
 
-            onUpdate(note.id, { x: newX, y: newY, width: newWidth, height: newHeight });
-
+            isInteractingRef.current = false;
             interactionRef.current = null;
         };
 
         document.addEventListener('mousemove', handleMove, { passive: false });
-        document.addEventListener('mouseup', handleEnd, { passive: false });
+        document.addEventListener('mouseup', handleEnd);
         document.addEventListener('touchmove', handleMove, { passive: false });
         document.addEventListener('touchend', handleEnd, { passive: false });
 
-    }, [containerRef, note.id, note.x, note.y, note.width, note.height, onUpdate, onSelect]);
+        return () => {
+            document.removeEventListener('mousemove', handleMove);
+            document.removeEventListener('mouseup', handleEnd);
+            document.removeEventListener('touchmove', handleMove);
+            document.removeEventListener('touchend', handleEnd);
+        };
+    }, [note, onUpdate, containerRef, onSelect]);
 
-    useEffect(() => {
-        if (!itemRef.current) return;
-        itemRef.current.style.setProperty('--x', `${note.x}px`);
-        itemRef.current.style.setProperty('--y', `${note.y}px`);
-        itemRef.current.style.setProperty('--w', `${note.width}px`);
-        itemRef.current.style.setProperty('--h', `${note.height}px`);
-        itemRef.current.style.transform = `translate(${note.x}px, ${note.y}px)`;
-        itemRef.current.style.width = `${note.width}px`;
-        itemRef.current.style.height = `${note.height}px`;
-    }, [note.x, note.y, note.width, note.height]);
-    
-    useEffect(() => {
-        if (!containerRef.current || interactionRef.current) return;
-        
-        const { id, x, y, width, height } = note;
-        const container = containerRef.current;
-        const padding = container.clientWidth * 0.01;
-        const containerWidth = container.clientWidth - 2 * padding;
-
-        let newX = x;
-        let newWidth = width;
-
-        if (width > containerWidth) {
-          newWidth = containerWidth * 0.7;
-        }
-
-        newX = Math.max(0, Math.min(newX, containerWidth - newWidth));
-        
-        if (Math.abs(newX - x) > 1 || Math.abs(newWidth - width) > 1) {
-          onUpdate(id, { x: newX, width: newWidth });
-        }
-      }, [note, containerRef, onUpdate]);
 
     const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         onUpdate(note.id, { content: e.target.value });
@@ -176,6 +235,9 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
                 position: 'absolute',
                 left: 0,
                 top: 0,
+                width: note.width,
+                height: note.height,
+                transform: `translate(${note.x}px, ${note.y}px)`,
                 touchAction: 'none'
             }}
             className={cn(
@@ -184,13 +246,7 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
             )}
             onMouseDown={(e) => handleInteractionStart(e, 'drag')}
             onTouchStart={(e) => handleInteractionStart(e, 'drag')}
-            onClick={(e) => {
-                const target = e.target as HTMLElement;
-                if(target.closest('[aria-label="Resize note"]') || target.closest('[aria-label="Delete note"]')) {
-                    return;
-                }
-                onSelect();
-            }}
+            onClick={handleBodyClick}
             data-ai-hint="sticky note"
             data-note-id={note.id}
         >
@@ -201,8 +257,6 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
                 <Textarea
                     value={note.content}
                     onChange={handleTextChange}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onTouchStart={(e) => e.stopPropagation()}
                     placeholder="Type your note..."
                     className="flex-grow w-full h-full bg-transparent border-0 focus-visible:ring-0 resize-none p-1 text-sm"
                 />
