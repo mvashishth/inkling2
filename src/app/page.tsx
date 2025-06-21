@@ -11,7 +11,6 @@ import {
   Trash2,
   Highlighter,
   FileUp,
-  Move,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DrawingCanvas, type DrawingCanvasRef } from '@/components/drawing-canvas';
@@ -35,11 +34,11 @@ if (typeof window !== 'undefined') {
   ).toString();
 }
 
-type Tool = 'draw' | 'erase' | 'highlight' | 'pan';
+type Tool = 'draw' | 'erase' | 'highlight';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
 
 export default function Home() {
-  const [tool, setTool] = React.useState<Tool>('pan');
+  const [tool, setTool] = React.useState<Tool | null>(null);
   const [penSize, setPenSize] = React.useState(5);
   const [penColor, setPenColor] = React.useState(COLORS[0]);
   const [eraserSize, setEraserSize] = React.useState(20);
@@ -52,6 +51,10 @@ export default function Home() {
   const canvasRef = React.useRef<DrawingCanvasRef>(null);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const handleToolClick = (selectedTool: Tool) => {
+    setTool((currentTool) => (currentTool === selectedTool ? null : selectedTool));
+  };
 
   const handleExport = () => {
     const dataUrl = canvasRef.current?.exportAsDataURL();
@@ -153,23 +156,10 @@ export default function Home() {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
-                        variant={tool === 'pan' ? 'secondary' : 'ghost'}
-                        size="icon"
-                        onClick={() => setTool('pan')}
-                        className="h-10 w-10 rounded-lg data-[state=active]:bg-accent"
-                      >
-                        <Move className="h-5 w-5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom"><p>Pan</p></TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
                         variant={tool === 'draw' ? 'secondary' : 'ghost'}
                         size="icon"
-                        onClick={() => setTool('draw')}
-                        className="h-10 w-10 rounded-lg data-[state=active]:bg-accent"
+                        onClick={() => handleToolClick('draw')}
+                        className="h-10 w-10 rounded-lg"
                       >
                         <Pencil className="h-5 w-5" />
                       </Button>
@@ -181,8 +171,8 @@ export default function Home() {
                       <Button
                         variant={tool === 'erase' ? 'secondary' : 'ghost'}
                         size="icon"
-                        onClick={() => setTool('erase')}
-                        className="h-10 w-10 rounded-lg data-[state=active]:bg-accent"
+                        onClick={() => handleToolClick('erase')}
+                        className="h-10 w-10 rounded-lg"
                       >
                         <Eraser className="h-5 w-5" />
                       </Button>
@@ -194,8 +184,8 @@ export default function Home() {
                       <Button
                         variant={tool === 'highlight' ? 'secondary' : 'ghost'}
                         size="icon"
-                        onClick={() => setTool('highlight')}
-                        className="h-10 w-10 rounded-lg data-[state=active]:bg-accent"
+                        onClick={() => handleToolClick('highlight')}
+                        className="h-10 w-10 rounded-lg"
                       >
                         <Highlighter className="h-5 w-5" />
                       </Button>
@@ -204,7 +194,7 @@ export default function Home() {
                   </Tooltip>
                 </div>
                 
-                {tool !== 'pan' && (
+                {tool && (
                   <div className="flex flex-row items-center p-1.5 rounded-lg bg-muted/50 gap-4">
                       <div className="flex items-center gap-2 px-1">
                           <span className="text-xs text-muted-foreground whitespace-nowrap">{tool === 'erase' ? 'Size' : 'Width'}: {sliderValue}</span>

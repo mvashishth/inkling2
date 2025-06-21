@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, {
@@ -24,7 +25,7 @@ export interface DrawingCanvasRef {
 }
 
 interface DrawingCanvasProps {
-  tool: 'draw' | 'erase' | 'highlight' | 'pan';
+  tool: 'draw' | 'erase' | 'highlight' | null;
   penColor: string;
   penSize: number;
   eraserSize: number;
@@ -55,9 +56,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     useEffect(() => {
         const canvas = canvasRef.current;
         if (canvas) {
-            canvas.style.touchAction = isDrawing ? 'none' : 'auto';
+            canvas.style.touchAction = tool ? 'none' : 'auto';
         }
-    }, [isDrawing]);
+    }, [tool]);
 
     const saveState = useCallback(() => {
       if (!canvasRef.current || !contextRef.current) return;
@@ -162,7 +163,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
     const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
       const context = contextRef.current;
-      if (!context || tool === 'pan') return;
+      if (!context || !tool) return;
       
       hasMovedRef.current = false;
       setIsDrawing(true);
