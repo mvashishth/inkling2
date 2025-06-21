@@ -132,6 +132,7 @@ export default function Home() {
   const [hoveredInkling, setHoveredInkling] = React.useState<string | null>(null);
 
   const [isClearConfirmOpen, setIsClearConfirmOpen] = React.useState(false);
+  const [viewerWidth, setViewerWidth] = React.useState(40);
 
   const canUndo = activeCanvas === 'pdf' ? pdfCanUndo : pinupCanUndo;
   const canRedo = activeCanvas === 'pdf' ? pdfCanRedo : pinupCanRedo;
@@ -571,7 +572,7 @@ export default function Home() {
       pdfView?.removeEventListener('scroll', throttledUpdate);
       pinupView?.removeEventListener('scroll', throttledUpdate);
     };
-  }, [inklings, snapshots, pageImages, pendingInkling, notes]);
+  }, [inklings, snapshots, pageImages, pendingInkling, notes, viewerWidth]);
 
   const sliderValue = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
   const sliderMin = tool === 'draw' ? 1 : tool === 'highlight' ? 10 : 2;
@@ -665,6 +666,26 @@ export default function Home() {
                     <TooltipContent side="bottom"><p>Add Note</p></TooltipContent>
                   </Tooltip>
                 </div>
+            </div>
+            
+            <div className="flex-grow flex items-center justify-center px-4">
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <div className="w-full max-w-xs flex items-center gap-2">
+                             <span className="text-sm text-muted-foreground">PDF</span>
+                             <Slider
+                                 value={[viewerWidth]}
+                                 onValueChange={(val) => setViewerWidth(val[0])}
+                                 min={20}
+                                 max={80}
+                                 step={1}
+                                 className="w-full"
+                             />
+                             <span className="text-sm text-muted-foreground">Pinup</span>
+                        </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Adjust Panel Split</p></TooltipContent>
+                </Tooltip>
             </div>
 
             <div className="flex items-center gap-x-2 sm:gap-x-4">
@@ -779,7 +800,8 @@ export default function Home() {
         <main ref={mainContainerRef} className="flex-1 flex flex-row overflow-hidden relative">
           <div 
             ref={pdfContainerRef}
-            className="w-2/5 flex flex-col"
+            className="flex flex-col"
+            style={{ width: `${viewerWidth}%` }}
             onMouseDownCapture={() => {
               setActiveCanvas('pdf');
               setSelectedSnapshot(null);
@@ -821,7 +843,10 @@ export default function Home() {
             </div>
           </div>
           <Separator orientation="vertical" className="h-full" />
-          <div className="w-3/5 flex flex-col">
+          <div 
+            className="flex flex-col"
+            style={{ width: `${100 - viewerWidth}%` }}
+          >
               <header className="p-2 text-center font-semibold bg-card border-b">Pinup Board</header>
               <div 
                 className="flex-1 relative bg-background overflow-auto"
