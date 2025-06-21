@@ -143,6 +143,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     };
 
     const draw = (e: React.MouseEvent | React.TouchEvent) => {
+      // For mouse events, check if the primary button is pressed.
+      if ('buttons' in e && e.buttons !== 1) {
+        // If we are in a drawing state, but the button is not pressed, it means
+        // we missed a mouseup event. Stop drawing to correct the state.
+        if (isDrawing) {
+          stopDrawing();
+        }
+        return;
+      }
+      
       const pageIndex = lastActivePageRef.current;
       const context = contextRefs.current[pageIndex];
       if (!isDrawing || !context || !lastPointRef.current) return;
