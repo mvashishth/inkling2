@@ -162,7 +162,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       }
     }, [initialAnnotations, pages.length, restoreState, toast]);
 
-    const getPoint = (e: React.MouseEvent | React.TouchEvent, canvasIndex: number): Point => {
+    const getPoint = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent, canvasIndex: number): Point => {
       const canvas = drawingCanvasRefs.current[canvasIndex];
       if (!canvas) return { x: 0, y: 0 };
       const rect = canvas.getBoundingClientRect();
@@ -172,6 +172,120 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         y: ((touch ? touch.clientY : e.clientY) - rect.top),
       };
     };
+
+    const draw = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
+      if (!isDrawingRef.current) return;
+      if ('preventDefault' in e) e.preventDefault();
+
+      const pageIndex = lastActivePageRef.current;
+      const point = getPoint(e, pageIndex);
+
+      if(tool === 'snapshot' && selection){
+        setSelection(prev => prev ? { ...prev, endX: point.x, endY: point.y } : null);
+        return;
+      }
+      
+      const context = contextRefs.current[pageIndex];
+      if (!context || !lastPointRef.current) return;
+
+      if (!hasMovedRef.current) {
+        hasMovedRef.current = true;
+      }
+      
+      if (tool === 'highlight' && preStrokeImageDataRef.current && currentPathRef.current) {
+        context.putImageData(preStrokeImageDataRef.current, 0, 0);
+        currentPathRef.current.lineTo(point.x, point.y);
+        context.stroke(currentPathRef.current);
+      } else {
+        context.lineTo(point.x, point.y);
+        context.stroke();
+      }
+      
+      lastPointRef.current = point;
+    };
+
+    const stopDrawing = () => {
+      if (!isDrawingRef.current) return;
+
+      if(tool === 'snapshot' && selection) {
+        const { pageIndex, startX, startY, endX, endY } = selection;
+        const x = Math.min(startX, endX);
+        const y = Math.min(startY, endY);
+        const width = Math.abs(endX - startX);
+        const height = Math.abs(endY - startY);
+
+        if (width > 5 && height > 5 && onSnapshot) {
+          const pageImageElement = pageContainerRef.current?.querySelectorAll('.page-image')[pageIndex] as HTMLImageElement;
+          
+          if (pageImageElement) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const tempCtx = tempCanvas.getContext('2d');
+            if (tempCtx) {
+              const scaleX = pageImageElement.naturalWidth / pageImageElement.width;
+              const scaleY = pageImageElement.naturalHeight / pageImageElement.height;
+              
+              tempCtx.drawImage(
+                pageImageElement,
+                x * scaleX, y * scaleY, width * scaleX, height * scaleY,
+                0, 0, width, height
+              );
+              
+              const dataUrl = tempCanvas.toDataURL('image/png');
+              onSnapshot(dataUrl, pageIndex, { x, y, width, height });
+            }
+          }
+        }
+        setSelection(null);
+        isDrawingRef.current = false;
+        return;
+      }
+      
+      const pageIndex = lastActivePageRef.current;
+      const context = contextRefs.current[pageIndex];
+      if (!context) return;
+      
+      if (!hasMovedRef.current && lastPointRef.current) {
+        const point = lastPointRef.current;
+        if (tool === 'highlight' && preStrokeImageDataRef.current) {
+          context.putImageData(preStrokeImageDataRef.current, 0, 0);
+        }
+
+        const size = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
+        context.fillStyle = tool === 'highlight' ? highlighterColor : penColor;
+        context.beginPath();
+        context.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
+        context.fill();
+      }
+
+      isDrawingRef.current = false;
+      lastPointRef.current = null;
+      preStrokeImageDataRef.current = null;
+      currentPathRef.current = null;
+      if (context.globalCompositeOperation !== 'source-over') {
+        context.globalCompositeOperation = 'source-over';
+      }
+      context.globalAlpha = 1.0;
+      saveState(pageIndex);
+    };
+
+    const stopDrawingRef = useRef(stopDrawing);
+    stopDrawingRef.current = stopDrawing;
+
+    useEffect(() => {
+        const handleUp = () => {
+            if (isDrawingRef.current) {
+                stopDrawingRef.current();
+            }
+        };
+        window.addEventListener('mouseup', handleUp);
+        window.addEventListener('touchend', handleUp);
+        return () => {
+            window.removeEventListener('mouseup', handleUp);
+            window.removeEventListener('touchend', handleUp);
+        };
+    }, []);
 
     const startDrawing = (e: React.MouseEvent | React.TouchEvent, pageIndex: number) => {
       if (!tool || ('button' in e && e.button !== 0)) return;
@@ -216,110 +330,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         context.beginPath();
         context.moveTo(point.x, point.y);
       }
-    };
-
-    const draw = (e: React.MouseEvent | React.TouchEvent) => {
-      if (!isDrawingRef.current) return;
-      e.preventDefault();
-
-      const pageIndex = lastActivePageRef.current;
-      const point = getPoint(e, pageIndex);
-
-      if(tool === 'snapshot' && selection){
-        setSelection(prev => prev ? { ...prev, endX: point.x, endY: point.y } : null);
-        return;
-      }
-      
-      const context = contextRefs.current[pageIndex];
-      if (!context || !lastPointRef.current) return;
-
-      if (!hasMovedRef.current) {
-        hasMovedRef.current = true;
-      }
-      
-      if (tool === 'highlight' && preStrokeImageDataRef.current && currentPathRef.current) {
-        context.putImageData(preStrokeImageDataRef.current, 0, 0);
-        currentPathRef.current.lineTo(point.x, point.y);
-        context.stroke(currentPathRef.current);
-      } else {
-        context.lineTo(point.x, point.y);
-        context.stroke();
-      }
-      
-      lastPointRef.current = point;
-    };
-
-    const stopDrawing = () => {
-      if (!isDrawingRef.current) return;
-
-      if(tool === 'snapshot' && selection) {
-        const { pageIndex, startX, startY, endX, endY } = selection;
-        const x = Math.min(startX, endX);
-        const y = Math.min(startY, endY);
-        const width = Math.abs(endX - startX);
-        const height = Math.abs(endY - startY);
-
-        if (width > 5 && height > 5 && onSnapshot) {
-          const drawingCanvas = drawingCanvasRefs.current[pageIndex];
-          const pageImageElement = pageContainerRef.current?.querySelectorAll('.page-image')[pageIndex] as HTMLImageElement;
-          
-          if (drawingCanvas && pageImageElement) {
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = width;
-            tempCanvas.height = height;
-            const tempCtx = tempCanvas.getContext('2d');
-            if (tempCtx) {
-              const scaleX = pageImageElement.naturalWidth / pageImageElement.width;
-              const scaleY = pageImageElement.naturalHeight / pageImageElement.height;
-              
-              tempCtx.drawImage(
-                pageImageElement,
-                x * scaleX, y * scaleY, width * scaleX, height * scaleY,
-                0, 0, width, height
-              );
-              
-              tempCtx.drawImage(
-                drawingCanvas,
-                x, y, width, height,
-                0, 0, width, height
-              );
-              
-              const dataUrl = tempCanvas.toDataURL('image/png');
-              onSnapshot(dataUrl, pageIndex, { x, y, width, height });
-            }
-          }
-        }
-        setSelection(null);
-        isDrawingRef.current = false;
-        return;
-      }
-      
-      const pageIndex = lastActivePageRef.current;
-      const context = contextRefs.current[pageIndex];
-      if (!context) return;
-      
-      if (!hasMovedRef.current && lastPointRef.current) {
-        const point = lastPointRef.current;
-        if (tool === 'highlight' && preStrokeImageDataRef.current) {
-          context.putImageData(preStrokeImageDataRef.current, 0, 0);
-        }
-
-        const size = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
-        context.fillStyle = tool === 'highlight' ? highlighterColor : penColor;
-        context.beginPath();
-        context.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
-        context.fill();
-      }
-
-      isDrawingRef.current = false;
-      lastPointRef.current = null;
-      preStrokeImageDataRef.current = null;
-      currentPathRef.current = null;
-      if (context.globalCompositeOperation !== 'source-over') {
-        context.globalCompositeOperation = 'source-over';
-      }
-      context.globalAlpha = 1.0;
-      saveState(pageIndex);
     };
     
     useImperativeHandle(ref, () => ({
@@ -490,10 +500,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                     onMouseDown={(e) => startDrawing(e, index)}
                     onTouchStart={(e) => startDrawing(e, index)}
                     onMouseMove={draw}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
                     onTouchMove={draw}
-                    onTouchEnd={stopDrawing}
                     className={cn(
                         "absolute inset-0",
                         !tool && 'pointer-events-none',
@@ -552,10 +559,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                 onMouseDown={(e) => startDrawing(e, 0)}
                 onTouchStart={(e) => startDrawing(e, 0)}
                 onMouseMove={draw}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
                 onTouchMove={draw}
-                onTouchEnd={stopDrawing}
                 className={cn(
                   'w-full h-full',
                   !tool && 'pointer-events-none'
