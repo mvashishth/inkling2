@@ -24,6 +24,7 @@ type Tool = 'draw' | 'erase';
 
 export default function Home() {
   const [tool, setTool] = React.useState<Tool>('draw');
+  const [penSize, setPenSize] = React.useState(5);
   const [eraserSize, setEraserSize] = React.useState(20);
   const [canUndo, setCanUndo] = React.useState(false);
   const [canRedo, setCanRedo] = React.useState(false);
@@ -45,7 +46,19 @@ export default function Home() {
   const handleHistoryChange = (canUndo: boolean, canRedo: boolean) => {
     setCanUndo(canUndo);
     setCanRedo(canRedo);
-  }
+  };
+
+  const handleSliderChange = (value: number[]) => {
+    if (tool === 'draw') {
+      setPenSize(value[0]);
+    } else {
+      setEraserSize(value[0]);
+    }
+  };
+
+  const sliderValue = tool === 'draw' ? penSize : eraserSize;
+  const sliderMin = tool === 'draw' ? 1 : 2;
+  const sliderMax = tool === 'draw' ? 20 : 100;
 
   return (
     <TooltipProvider delayDuration={100}>
@@ -81,19 +94,21 @@ export default function Home() {
                 <TooltipContent side="right"><p>Eraser</p></TooltipContent>
               </Tooltip>
             </div>
-            {tool === 'erase' && (
-              <div className="w-24 md:w-full flex items-center justify-center p-2 rounded-md bg-muted/50">
-                <Slider
-                  defaultValue={[eraserSize]}
-                  max={100}
-                  min={2}
-                  step={1}
-                  onValueChange={(value) => setEraserSize(value[0])}
-                  className="[&>span:first-child]:h-1"
-                  orientation="vertical"
-                />
+            
+            <div className="w-32 md:w-full flex flex-col items-center justify-center p-2 rounded-md bg-muted/50 gap-2">
+              <div className="w-full flex justify-between text-xs text-muted-foreground px-1">
+                <span>{tool === 'draw' ? 'Width' : 'Size'}</span>
+                <span>{sliderValue}</span>
               </div>
-            )}
+              <Slider
+                value={[sliderValue]}
+                max={sliderMax}
+                min={sliderMin}
+                step={1}
+                onValueChange={handleSliderChange}
+              />
+            </div>
+            
             <Separator className="hidden md:block" />
             <div className="flex items-center gap-2">
               <Tooltip>
@@ -139,6 +154,7 @@ export default function Home() {
           <DrawingCanvas
             ref={canvasRef}
             tool={tool}
+            penSize={penSize}
             eraserSize={eraserSize}
             onHistoryChange={handleHistoryChange}
           />

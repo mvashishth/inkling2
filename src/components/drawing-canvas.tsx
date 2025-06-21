@@ -25,26 +25,22 @@ export interface DrawingCanvasRef {
 
 interface DrawingCanvasProps {
   tool: 'draw' | 'erase';
+  penSize: number;
   eraserSize: number;
   onHistoryChange: (canUndo: boolean, canRedo: boolean) => void;
 }
 
 // --- Constants ---
 const LINE_COLOR = '#1A1A1A';
-const MAX_LINE_WIDTH = 12;
-const MIN_LINE_WIDTH = 1.5;
-const SMOOTHING_FACTOR = 0.5;
 
 // --- Component ---
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-  ({ tool, eraserSize, onHistoryChange }, ref) => {
+  ({ tool, penSize, eraserSize, onHistoryChange }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const contextRef = useRef<CanvasRenderingContext2D | null>(null);
 
     const [isDrawing, setIsDrawing] = useState(false);
     const lastPointRef = useRef<Point | null>(null);
-    const lastTimestampRef = useRef<number>(0);
-    const lastLineWidthRef = useRef<number>((MAX_LINE_WIDTH + MIN_LINE_WIDTH) / 2);
 
     const historyRef = useRef<ImageData[]>([]);
     const historyIndexRef = useRef<number>(-1);
@@ -130,14 +126,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       setIsDrawing(true);
       const point = getPoint(e);
       lastPointRef.current = point;
-      lastTimestampRef.current = Date.now();
-      lastLineWidthRef.current = (MAX_LINE_WIDTH + MIN_LINE_WIDTH) / 2;
-      
-      context.beginPath();
-      context.moveTo(point.x, point.y);
-      context.fillStyle = LINE_COLOR;
-      context.arc(point.x, point.y, lastLineWidthRef.current / 2, 0, Math.PI * 2);
-      context.fill();
+
+      if (tool === 'draw') {
+        context.globalCompositeOperation = 'source-over';
+        context.beginPath();
+        context.moveTo(point.x, point.y);
+        context.fillStyle = LINE_COLOR;
+        context.arc(point.x, point.y, penSize / 2, 0, Math.PI * 2);
+        context.fill();
+      }
     };
 
     const draw = (e: React.MouseEvent | React.TouchEvent) => {
@@ -148,20 +145,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
       context.globalCompositeOperation = tool === 'erase' ? 'destination-out' : 'source-over';
       
-      let lineWidth;
-      if (tool === 'draw') {
-        const distance = Math.sqrt(
-          (currentPoint.x - lastPointRef.current.x) ** 2 +
-          (currentPoint.y - lastPointRef.current.y) ** 2
-        );
-        const time = Date.now() - lastTimestampRef.current;
-        const speed = time > 0 ? distance / time : 0;
-        
-        const targetWidth = Math.max(MIN_LINE_WIDTH, MAX_LINE_WIDTH - speed * 1.5);
-        lineWidth = lastLineWidthRef.current * (1-SMOOTHING_FACTOR) + targetWidth * SMOOTHING_FACTOR;
-      } else {
-        lineWidth = eraserSize;
-      }
+      const lineWidth = tool === 'draw' ? penSize : eraserSize;
       
       context.lineWidth = lineWidth;
       context.strokeStyle = LINE_COLOR;
@@ -172,8 +156,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       context.stroke();
 
       lastPointRef.current = currentPoint;
-      lastTimestampRef.current = Date.now();
-      lastLineWidthRef.current = lineWidth;
     };
 
     const stopDrawing = () => {
