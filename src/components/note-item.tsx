@@ -201,6 +201,8 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
                 <Textarea
                     value={note.content}
                     onChange={handleTextChange}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
                     placeholder="Type your note..."
                     className="flex-grow w-full h-full bg-transparent border-0 focus-visible:ring-0 resize-none p-1 text-sm"
                 />
