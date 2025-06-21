@@ -560,40 +560,47 @@ export default function Home() {
           <div className="w-2/5 flex flex-col">
               <header className="p-2 text-center font-semibold bg-card border-b">Pinup Board</header>
               <div 
-                ref={pinupContainerRef}
-                className="flex-1 relative bg-background overflow-auto"
+                className="flex-1 relative bg-background overflow-auto p-[1%]"
                 onMouseDownCapture={(e) => {
-                  setActiveCanvas('pinup');
-                  if(e.target === e.currentTarget) {
+                  if (e.target === e.currentTarget) {
+                    setActiveCanvas('pinup');
                     setSelectedSnapshot(null);
                   }
                 }}
               >
-                <DrawingCanvas
-                    ref={pinupCanvasRef}
-                    pages={[]}
-                    tool={null}
-                    penColor={penColor}
-                    penSize={penSize}
-                    eraserSize={eraserSize}
-                    highlighterSize={highlighterSize}
-                    highlighterColor={highlighterColor}
-                    onHistoryChange={handlePinupHistoryChange}
-                    initialAnnotations={null}
-                    toast={toast}
-                />
-                {snapshots.map(snapshot => (
-                  <SnapshotItem 
-                    key={snapshot.id}
-                    snapshot={snapshot}
-                    onUpdate={updateSnapshot}
-                    onDelete={deleteSnapshot}
-                    onClick={() => handleSnapshotClick(snapshot)}
-                    isSelected={selectedSnapshot === snapshot.id}
-                    onSelect={() => setSelectedSnapshot(snapshot.id)}
-                    containerRef={pinupContainerRef}
-                  />
-                ))}
+                <div
+                    ref={pinupContainerRef}
+                    className="relative w-full h-full"
+                    onMouseDownCapture={() => {
+                        setActiveCanvas('pinup');
+                    }}
+                >
+                    <DrawingCanvas
+                        ref={pinupCanvasRef}
+                        pages={[]}
+                        tool={null}
+                        penColor={penColor}
+                        penSize={penSize}
+                        eraserSize={eraserSize}
+                        highlighterSize={highlighterSize}
+                        highlighterColor={highlighterColor}
+                        onHistoryChange={handlePinupHistoryChange}
+                        initialAnnotations={null}
+                        toast={toast}
+                    />
+                    {snapshots.map(snapshot => (
+                      <SnapshotItem 
+                        key={snapshot.id}
+                        snapshot={snapshot}
+                        onUpdate={updateSnapshot}
+                        onDelete={deleteSnapshot}
+                        onClick={() => handleSnapshotClick(snapshot)}
+                        isSelected={selectedSnapshot === snapshot.id}
+                        onSelect={() => setSelectedSnapshot(snapshot.id)}
+                        containerRef={pinupContainerRef}
+                      />
+                    ))}
+                </div>
               </div>
           </div>
         </main>
