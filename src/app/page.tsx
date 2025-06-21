@@ -234,7 +234,7 @@ export default function Home() {
     imageInputRef.current?.click();
   };
   
-  const loadPdf = async (arrayBuffer: ArrayBuffer) => {
+  const loadPdf = async (arrayBuffer: ArrayBuffer, isProjectLoad = false) => {
     if (!arrayBuffer || arrayBuffer.byteLength === 0) {
       toast({
         title: "Cannot load PDF",
@@ -248,12 +248,15 @@ export default function Home() {
     setIsPdfLoading(true);
     setPdfLoadProgress(0);
     setPageImages([]);
-    setSnapshots([]);
-    setInklings([]);
-    setNotes([]);
-    setUploadedImages([]);
     pdfCanvasRef.current?.clear();
     pinupCanvasRef.current?.clear();
+
+    if (!isProjectLoad) {
+      setSnapshots([]);
+      setInklings([]);
+      setNotes([]);
+      setUploadedImages([]);
+    }
 
     try {
       const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
@@ -320,7 +323,7 @@ export default function Home() {
                   setInklings(projectData.inklings || []);
                   setNotes(projectData.notes || []);
                   setUploadedImages(projectData.uploadedImages || []);
-                  await loadPdf(arrayBuffer.slice(0));
+                  await loadPdf(arrayBuffer.slice(0), true);
               } else {
                   throw new Error("Invalid project file format.");
               }
@@ -340,10 +343,6 @@ export default function Home() {
         setOriginalPdfFileName(file.name);
         setAnnotationDataToLoad(null);
         setPinupAnnotationDataToLoad(null);
-        setSnapshots([]);
-        setInklings([]);
-        setNotes([]);
-        setUploadedImages([]);
         await loadPdf(arrayBuffer.slice(0));
     } else {
         toast({
@@ -408,14 +407,14 @@ export default function Home() {
     setOriginalPdfFile(null);
     setOriginalPdfFileName(null);
     setAnnotationDataToLoad(null);
-    setPinupAnnotationDataToLoad(null);
-
+    
     // Clear Pinup board
     pinupCanvasRef.current?.clear();
     setSnapshots([]);
     setNotes([]);
     setUploadedImages([]);
     setInklings([]);
+    setPinupAnnotationDataToLoad(null);
 
     setIsClearConfirmOpen(false);
   };

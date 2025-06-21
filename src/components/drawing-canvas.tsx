@@ -223,7 +223,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     }, []);
 
     useEffect(() => {
-      if (initialAnnotations && pages.length > 0) {
+      if (initialAnnotations) {
         const base64ToUint8ClampedArray = (base64: string) => {
             const binary_string = window.atob(base64);
             const len = binary_string.length;
@@ -263,7 +263,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             pageHistoryIndexRef.current.clear();
         }
       }
-    }, [initialAnnotations, pages.length, restoreState, toast]);
+    }, [initialAnnotations, toast]);
 
     const getPoint = useCallback((e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent, canvasIndex: number): Point => {
       const canvas = drawingCanvasRefs.current[canvasIndex];
@@ -609,11 +609,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                 const { width, height } = container.getBoundingClientRect();
                 canvas.width = width;
                 canvas.height = height;
-                pageHistoryRef.current.clear();
-                pageHistoryIndexRef.current.clear();
-                pageHistoryRef.current.set(0, []);
-                pageHistoryIndexRef.current.set(0, -1);
-                saveState(0);
+                
+                const history = pageHistoryRef.current.get(0) ?? [];
+                const historyIdx = pageHistoryIndexRef.current.get(0) ?? -1;
+
+                if (history.length > 0 && historyIdx > -1 && history[historyIdx]) {
+                  restoreState(0, historyIdx);
+                } else {
+                  pageHistoryRef.current.clear();
+                  pageHistoryIndexRef.current.clear();
+                  pageHistoryRef.current.set(0, []);
+                  pageHistoryIndexRef.current.set(0, -1);
+                  saveState(0);
+                }
+                updateHistoryButtons(0);
             }
             const resizeObserver = new ResizeObserver(resize);
             resizeObserver.observe(container);
@@ -621,7 +630,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             return () => resizeObserver.disconnect();
         }
       }
-    }, [pages.length, saveState]);
+    }, [pages.length, saveState, restoreState, updateHistoryButtons]);
 
     if (pages.length === 0) {
         return (
