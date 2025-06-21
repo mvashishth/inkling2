@@ -9,7 +9,9 @@ import {
   Redo,
   Trash2,
   Highlighter,
+  FileUp,
 } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
 import { DrawingCanvas, type DrawingCanvasRef } from '@/components/drawing-canvas';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -21,6 +23,14 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { useToast } from "@/hooks/use-toast";
+
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url
+  ).toString();
+}
 
 type Tool = 'draw' | 'erase' | 'highlight';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
@@ -35,6 +45,8 @@ export default function Home() {
   const [canRedo, setCanRedo] = React.useState(false);
 
   const canvasRef = React.useRef<DrawingCanvasRef>(null);
+  const pdfInputRef = React.useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
 
   const handleExport = () => {
     const dataUrl = canvasRef.current?.exportAsDataURL();
@@ -60,6 +72,51 @@ export default function Home() {
       setHighlighterSize(value[0]);
     } else {
       setEraserSize(value[0]);
+    }
+  };
+
+  const handlePdfUploadClick = () => {
+    pdfInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+      const page = await pdf.getPage(1); // Render first page
+
+      const viewport = page.getViewport({ scale: 2.0 }); // Render at 2x scale for quality
+
+      const tempCanvas = document.createElement('canvas');
+      const tempContext = tempCanvas.getContext('2d');
+      if (!tempContext) return;
+
+      tempCanvas.width = viewport.width;
+      tempCanvas.height = viewport.height;
+
+      await page.render({
+        canvasContext: tempContext,
+        viewport: viewport,
+      }).promise;
+
+      const dataUrl = tempCanvas.toDataURL('image/png');
+      canvasRef.current?.loadImage(dataUrl);
+
+    } catch (error) {
+      console.error('Failed to render PDF:', error);
+      toast({
+        title: "Error loading PDF",
+        description: "There was a problem rendering the PDF file. Please try another file.",
+        variant: "destructive",
+      });
+    } finally {
+      // Reset file input to allow uploading the same file again
+      if (e.target) {
+        e.target.value = '';
+      }
     }
   };
 
@@ -184,6 +241,14 @@ export default function Home() {
           <div className="flex flex-row md:flex-col items-center gap-2 ml-auto md:ml-0 md:mt-auto">
             <Tooltip>
               <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" onClick={handlePdfUploadClick} className="h-12 w-12 rounded-lg">
+                  <FileUp className="h-6 w-6" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="right"><p>Upload PDF</p></TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
                 <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.clear()} className="h-12 w-12 rounded-lg">
                   <Trash2 className="h-6 w-6 text-destructive" />
                 </Button>
@@ -202,6 +267,13 @@ export default function Home() {
         </aside>
 
         <main className="flex-1 relative bg-background overflow-auto">
+          <input
+            type="file"
+            ref={pdfInputRef}
+            onChange={handleFileSelect}
+            accept="application/pdf"
+            className="hidden"
+          />
           <DrawingCanvas
             ref={canvasRef}
             tool={tool}

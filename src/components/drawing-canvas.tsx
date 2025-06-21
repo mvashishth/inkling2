@@ -226,8 +226,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         const canvas = canvasRef.current;
         const context = contextRef.current;
         if (canvas && context) {
+          const dpr = window.devicePixelRatio || 1;
           context.fillStyle = 'white';
-          context.fillRect(0, 0, canvas.width, canvas.height);
+          context.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
           saveState();
         }
       },
@@ -252,8 +253,24 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
          
          const img = new Image();
          img.onload = () => {
-           context.clearRect(0, 0, canvas.width, canvas.height);
-           context.drawImage(img, 0, 0, canvas.width / (window.devicePixelRatio || 1), canvas.height / (window.devicePixelRatio || 1));
+           const dpr = window.devicePixelRatio || 1;
+           const canvasWidth = canvas.width / dpr;
+           const canvasHeight = canvas.height / dpr;
+
+           // Clear canvas with white background
+           context.fillStyle = 'white';
+           context.fillRect(0, 0, canvasWidth, canvasHeight);
+           
+           // Calculate scale to fit image while preserving aspect ratio
+           const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height);
+           const scaledWidth = img.width * scale;
+           const scaledHeight = img.height * scale;
+           
+           // Center the image
+           const x = (canvasWidth - scaledWidth) / 2;
+           const y = (canvasHeight - scaledHeight) / 2;
+
+           context.drawImage(img, x, y, scaledWidth, scaledHeight);
            saveState();
          }
          img.src = dataUrl;
