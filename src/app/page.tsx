@@ -60,15 +60,16 @@ interface PdfPoint {
   x: number;
   y: number;
 }
-interface SnapshotPoint {
-  snapshotId: string;
-  x: number;
-  y: number;
+interface PinupPoint {
+    targetId: string;
+    targetType: 'snapshot' | 'note';
+    x: number;
+    y: number;
 }
 export interface Inkling {
   id: string;
   pdfPoint: PdfPoint;
-  snapshotPoint: SnapshotPoint;
+  pinupPoint: PinupPoint;
 }
 
 interface InklingRenderData {
@@ -346,10 +347,9 @@ export default function Home() {
         setNotes([]);
     } else {
         pinupCanvasRef.current?.clear();
-        const pdfSnapshots = snapshots.filter(s => inklings.some(i => i.snapshotPoint.snapshotId === s.id));
-        setSnapshots(pdfSnapshots);
-        setInklings([]);
+        setSnapshots([]);
         setNotes([]);
+        setInklings([]);
     }
   };
 
@@ -378,7 +378,7 @@ export default function Home() {
 
   const deleteSnapshot = React.useCallback((id: string) => {
     setSnapshots(snapshots => snapshots.filter(s => s.id !== id));
-    setInklings(inklings => inklings.filter(i => i.snapshotPoint.snapshotId !== id));
+    setInklings(inklings => inklings.filter(i => !(i.pinupPoint.targetType === 'snapshot' && i.pinupPoint.targetId === id)));
   }, []);
 
   const handleNoteCreate = React.useCallback((rect: { x: number; y: number; width: number; height: number }) => {
@@ -397,6 +397,7 @@ export default function Home() {
 
   const deleteNote = React.useCallback((id: string) => {
     setNotes(notes => notes.filter(n => n.id !== id));
+    setInklings(inklings => inklings.filter(i => !(i.pinupPoint.targetType === 'note' && i.pinupPoint.targetId === id)));
   }, []);
 
 
@@ -410,7 +411,7 @@ export default function Home() {
         const newInkling: Inkling = {
             id: `inkling_${Date.now()}`,
             pdfPoint: pendingInkling,
-            snapshotPoint: { snapshotId: snapshot.id, x, y },
+            pinupPoint: { targetId: snapshot.id, targetType: 'snapshot', x, y },
         };
         setInklings(prev => [...prev, newInkling]);
         setPendingInkling(null);
@@ -424,35 +425,74 @@ export default function Home() {
     }
     
     setSelectedSnapshot(snapshot.id);
+    setSelectedNote(null);
     const pageElement = pdfCanvasRef.current?.getPageElement(snapshot.sourcePage);
     if (pageElement) {
       pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [pendingInkling]);
+  }, [pendingInkling, toast]);
+
+  const handleNoteClick = React.useCallback((note: Note, e: React.MouseEvent<HTMLDivElement>) => {
+    if (pendingInkling) {
+      const target = e.currentTarget;
+      const rect = target.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      const newInkling: Inkling = {
+        id: `inkling_${Date.now()}`,
+        pdfPoint: pendingInkling,
+        pinupPoint: { targetId: note.id, targetType: 'note', x, y },
+      };
+      setInklings(prev => [...prev, newInkling]);
+      setPendingInkling(null);
+      setTool(null);
+      toast({
+        title: "Link Created!",
+        description: "A new link between the PDF and the note has been created.",
+      });
+      e.stopPropagation();
+      return;
+    }
+    setSelectedNote(note.id);
+    setSelectedSnapshot(null);
+  }, [pendingInkling, toast]);
 
   const handleCanvasClick = (pageIndex: number, point: { x: number; y: number; }) => {
     if (tool !== 'inkling') return;
     setPendingInkling({ pageIndex, x: point.x, y: point.y });
     toast({
         title: "Link Started",
-        description: "Click on a snapshot in the pinup board to complete the link.",
+        description: "Click on a snapshot or note in the pinup board to complete the link.",
     });
   };
   
-  const handleInklingEndpointClick = (inklingId: string, endpoint: 'pdf' | 'snapshot') => {
+  const handleInklingEndpointClick = (inklingId: string, endpoint: 'pdf' | 'pinup') => {
     const inkling = inklings.find(i => i.id === inklingId);
     if (!inkling) return;
 
-    if (endpoint === 'snapshot') {
+    if (endpoint === 'pinup') {
       const pageElement = pdfCanvasRef.current?.getPageElement(inkling.pdfPoint.pageIndex);
       if (pageElement) {
         pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    } else { // 'pdf'
-      const snapshotElement = pinupContainerRef.current?.querySelector(`[data-snapshot-id="${inkling.snapshotPoint.snapshotId}"]`) as HTMLDivElement;
-      if (snapshotElement) {
-        snapshotElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setSelectedSnapshot(inkling.snapshotPoint.snapshotId);
+    } else { // 'pdf' endpoint clicked, go to pinup item
+      const { targetId, targetType } = inkling.pinupPoint;
+      const selector = targetType === 'snapshot' 
+        ? `[data-snapshot-id="${targetId}"]` 
+        : `[data-note-id="${targetId}"]`;
+      
+      const pinupElement = pinupContainerRef.current?.querySelector(selector) as HTMLDivElement;
+      
+      if (pinupElement) {
+        pinupElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (targetType === 'snapshot') {
+          setSelectedSnapshot(targetId);
+          setSelectedNote(null);
+        } else {
+          setSelectedNote(targetId);
+          setSelectedSnapshot(null);
+        }
       }
     }
   };
@@ -475,16 +515,20 @@ export default function Home() {
         const newRenderData: InklingRenderData[] = [];
         inklings.forEach(inkling => {
             const pdfPageElement = pdfCanvasRef.current?.getPageElement(inkling.pdfPoint.pageIndex)?.querySelector('canvas');
-            const snapshotElement = pinupContainerRef.current?.querySelector(`[data-snapshot-id="${inkling.snapshotPoint.snapshotId}"]`) as HTMLDivElement;
+            const { targetId, targetType, x, y } = inkling.pinupPoint;
+            const selector = targetType === 'snapshot'
+                ? `[data-snapshot-id="${targetId}"]`
+                : `[data-note-id="${targetId}"]`;
+            const pinupElement = pinupContainerRef.current?.querySelector(selector) as HTMLDivElement;
             
-            if (pdfPageElement && snapshotElement) {
+            if (pdfPageElement && pinupElement) {
                 const pdfRect = pdfPageElement.getBoundingClientRect();
-                const snapshotRect = snapshotElement.getBoundingClientRect();
+                const pinupRect = pinupElement.getBoundingClientRect();
 
                 const startX = pdfRect.left - mainRect.left + inkling.pdfPoint.x;
                 const startY = pdfRect.top - mainRect.top + inkling.pdfPoint.y;
-                const endX = snapshotRect.left - mainRect.left + inkling.snapshotPoint.x;
-                const endY = snapshotRect.top - mainRect.top + inkling.snapshotPoint.y;
+                const endX = pinupRect.left - mainRect.left + x;
+                const endY = pinupRect.top - mainRect.top + y;
                 
                 const pathD = `M ${startX} ${startY} C ${startX + 50} ${startY}, ${endX - 50} ${endY}, ${endX} ${endY}`;
                 newRenderData.push({
@@ -821,7 +865,10 @@ export default function Home() {
                         onDelete={deleteSnapshot}
                         onClick={(e) => handleSnapshotClick(snapshot, e)}
                         isSelected={selectedSnapshot === snapshot.id}
-                        onSelect={() => setSelectedSnapshot(snapshot.id)}
+                        onSelect={() => {
+                            setSelectedSnapshot(snapshot.id);
+                            setSelectedNote(null);
+                        }}
                         containerRef={pinupContainerRef}
                       />
                     ))}
@@ -831,8 +878,12 @@ export default function Home() {
                         note={note}
                         onUpdate={updateNote}
                         onDelete={deleteNote}
+                        onClick={(e) => handleNoteClick(note, e)}
                         isSelected={selectedNote === note.id}
-                        onSelect={() => setSelectedNote(note.id)}
+                        onSelect={() => {
+                            setSelectedNote(note.id);
+                            setSelectedSnapshot(null);
+                        }}
                         containerRef={pinupContainerRef}
                       />
                     ))}
@@ -857,7 +908,7 @@ export default function Home() {
 
                     {/* Clickable areas for endpoints */}
                     <circle cx={data.startCircle.cx} cy={data.startCircle.cy} r="10" fill="transparent" className="pointer-events-auto cursor-pointer" onClick={() => handleInklingEndpointClick(data.id, 'pdf')} />
-                    <circle cx={data.endCircle.cx} cy={data.endCircle.cy} r="10" fill="transparent" className="pointer-events-auto cursor-pointer" onClick={() => handleInklingEndpointClick(data.id, 'snapshot')} />
+                    <circle cx={data.endCircle.cx} cy={data.endCircle.cy} r="10" fill="transparent" className="pointer-events-auto cursor-pointer" onClick={() => handleInklingEndpointClick(data.id, 'pinup')} />
 
                     {hoveredInkling === data.id && (
                       <g className="pointer-events-auto cursor-pointer" onClick={() => handleDeleteInkling(data.id)}>

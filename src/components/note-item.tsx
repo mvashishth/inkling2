@@ -19,12 +19,13 @@ interface NoteItemProps {
     note: Note;
     onUpdate: (id: string, newProps: Partial<Omit<Note, 'id'>>) => void;
     onDelete: (id:string) => void;
+    onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
     isSelected: boolean;
     onSelect: () => void;
     containerRef: React.RefObject<HTMLDivElement>;
 }
 
-export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, isSelected, onSelect, containerRef }) => {
+export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, onClick, isSelected, onSelect, containerRef }) => {
     const itemRef = useRef<HTMLDivElement>(null);
     const interactionRef = useRef<{
         type: 'drag' | 'resize';
@@ -106,7 +107,8 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
             return;
         }
         onSelect();
-    }, [onSelect]);
+        onClick(e);
+    }, [onSelect, onClick]);
 
 
     useEffect(() => {
