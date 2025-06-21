@@ -19,7 +19,7 @@ interface Point {
 interface SerializableImageData {
   width: number;
   height: number;
-  data: number[];
+  data: string;
 }
 export interface AnnotationData {
   history: [number, SerializableImageData[]][];
@@ -110,12 +110,23 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
     useEffect(() => {
       if (initialAnnotations && pages.length > 0) {
+        const base64ToUint8ClampedArray = (base64: string) => {
+            const binary_string = window.atob(base64);
+            const len = binary_string.length;
+            const bytes = new Uint8ClampedArray(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binary_string.charCodeAt(i);
+            }
+            return bytes;
+        }
+
         const newHistoryMap = new Map<number, ImageData[]>();
         const newHistoryIndexMap = new Map<number, number>();
 
         for (const [pageIndex, history] of initialAnnotations.history) {
             const newPageHistory = history.map(s_img => {
-                return new ImageData(new Uint8ClampedArray(s_img.data), s_img.width, s_img.height);
+                const dataArray = base64ToUint8ClampedArray(s_img.data);
+                return new ImageData(dataArray, s_img.width, s_img.height);
             });
             newHistoryMap.set(pageIndex, newPageHistory);
         }
@@ -326,12 +337,21 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       getAnnotationData: () => {
         if (pageHistoryRef.current.size === 0) return undefined;
 
+        const uint8ClampedArrayToBase64 = (arr: Uint8ClampedArray) => {
+            let binary = '';
+            const len = arr.length;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(arr[i]);
+            }
+            return window.btoa(binary);
+        }
+
         const serializedHistory: [number, SerializableImageData[]][] = [];
         for (const [pageIndex, history] of pageHistoryRef.current.entries()) {
             const pageHistory = history.map(imageData => ({
                 width: imageData.width,
                 height: imageData.height,
-                data: Array.from(imageData.data),
+                data: uint8ClampedArrayToBase64(imageData.data),
             }));
             serializedHistory.push([pageIndex, pageHistory]);
         }
