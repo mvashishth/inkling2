@@ -573,8 +573,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                 ref={el => { if(el) drawingCanvasRefs.current[0] = el}}
                 onMouseDown={(e) => startDrawing(e, 0)}
                 onTouchStart={(e) => startDrawing(e, 0)}
-                onMouseMove={(e) => draw(e)}
-                onTouchMove={(e) => draw(e)}
                 className={cn(
                   'w-full h-full',
                   !tool && 'pointer-events-none'
