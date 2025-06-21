@@ -42,6 +42,10 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
         hasDragged: boolean;
     } | null>(null);
 
+    // This ref stores the last known coordinates from a move event,
+    // which is more reliable than using the coordinates from a touchend event.
+    const lastMovePointRef = useRef<{ x: number, y: number } | null>(null);
+
     const handleInteractionStart = (e: React.MouseEvent | React.TouchEvent, type: InteractionType) => {
         e.stopPropagation();
         
@@ -57,6 +61,7 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             snapshotHeight: snapshot.height,
             hasDragged: false,
         };
+        lastMovePointRef.current = { x: point.clientX, y: point.clientY };
         setInteractionType(type);
     };
 
@@ -65,10 +70,14 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
 
         const handleMove = (e: MouseEvent | TouchEvent) => {
             if (!itemRef.current || !containerRef.current || !interactionStartRef.current) return;
-            e.preventDefault();
+            
+            if ('touches' in e) {
+                e.preventDefault();
+            }
 
             const isTouchEvent = 'touches' in e;
             const point = isTouchEvent ? e.touches[0] : e;
+            lastMovePointRef.current = { x: point.clientX, y: point.clientY };
 
             const dx = point.clientX - interactionStartRef.current.startX;
             const dy = point.clientY - interactionStartRef.current.startY;
@@ -93,7 +102,7 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             }
         };
 
-        const handleEnd = (e: MouseEvent | TouchEvent) => {
+        const handleEnd = () => {
             if (!itemRef.current || !containerRef.current || !interactionStartRef.current) {
                 setInteractionType(null);
                 return;
@@ -106,10 +115,11 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             itemRef.current.style.height = '';
 
             if (hasDragged) {
-                const isTouchEvent = 'changedTouches' in e;
-                const point = isTouchEvent ? e.changedTouches[0] : e;
-                const dx = point.clientX - startX;
-                const dy = point.clientY - startY;
+                const point = lastMovePointRef.current;
+                if (!point) return;
+
+                const dx = point.x - startX;
+                const dy = point.y - startY;
 
                 if (interactionType === 'drag') {
                     const { clientWidth, clientHeight } = containerRef.current;
@@ -137,11 +147,14 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
                 }
             } else {
                 onSelect();
-                onClick();
+                if (interactionType === 'drag') {
+                    onClick();
+                }
             }
             
             setInteractionType(null);
             interactionStartRef.current = null;
+            lastMovePointRef.current = null;
         };
         
         window.addEventListener('mousemove', handleMove);
@@ -155,7 +168,7 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             window.removeEventListener('touchmove', handleMove);
             window.removeEventListener('touchend', handleEnd);
         };
-    }, [interactionType, snapshot.id, containerRef, onClick, onDelete, onSelect, onUpdate]);
+    }, [interactionType, snapshot.id, containerRef, onClick, onDelete, onSelect, onUpdate, snapshot.x, snapshot.y, snapshot.width, snapshot.height]);
 
     return (
         <div
