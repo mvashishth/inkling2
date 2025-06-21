@@ -154,7 +154,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         currentPathRef.current.lineTo(currentPoint.x, currentPoint.y);
         
         context.globalCompositeOperation = 'source-over';
-        context.globalAlpha = 0.3;
+        context.globalAlpha = 0.2;
         context.strokeStyle = penColor;
         context.lineWidth = highlighterSize;
         context.stroke(currentPathRef.current);
@@ -196,7 +196,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
         if (tool === 'draw' || tool === 'highlight') {
             context.globalCompositeOperation = 'source-over';
-            context.globalAlpha = tool === 'highlight' ? 0.3 : 1.0;
+            context.globalAlpha = tool === 'highlight' ? 0.2 : 1.0;
             context.fillStyle = penColor;
             
             context.beginPath();
