@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { X, Expand, Move } from 'lucide-react';
+import { X, Expand } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from './ui/textarea';
 
@@ -246,7 +246,6 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
                 onTouchStart={(e) => handleInteractionStart(e, 'drag')}
                 className="h-6 bg-yellow-300/90 rounded-t-md flex items-center justify-center text-gray-600/70 cursor-grab active:cursor-grabbing"
             >
-                <Move size={14} />
             </div>
              <div className={cn(
                 "w-full h-full flex-grow border-2 rounded-b-md flex flex-col border-t-0 relative",
