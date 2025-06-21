@@ -9,6 +9,7 @@ import React, {
   forwardRef,
   useCallback,
 } from 'react';
+import { cn } from '@/lib/utils';
 
 // --- Types ---
 interface Point {
@@ -360,7 +361,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
           onTouchStart={startDrawing}
           onTouchMove={draw}
           onTouchEnd={stopDrawing}
-          className="absolute inset-0"
+          className={cn(
+            'absolute inset-0',
+            !tool && 'pointer-events-none'
+          )}
           data-ai-hint="drawing layer"
         />
       </div>
