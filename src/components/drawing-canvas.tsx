@@ -114,6 +114,8 @@ const Page = React.memo(({
                 restoreState(index, historyIdx);
               } else if (!isProjectLoading) {
                 if (!pageHistoryRef.current.has(index)) {
+                  pageHistoryRef.current.set(index, []);
+                  pageHistoryIndexRef.current.set(index, -1);
                   saveState(index);
                 }
               }
@@ -205,7 +207,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     const saveState = useCallback((pageIndex: number) => {
       const canvas = drawingCanvasRefs.current[pageIndex];
       const context = contextRefs.current[pageIndex];
-      if (!canvas || !context) return;
+      if (!canvas || !context || canvas.width === 0 || canvas.height === 0) return;
 
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       
@@ -227,7 +229,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     }, []);
 
     useEffect(() => {
-      if (initialAnnotations) {
+      if (initialAnnotations && isProjectLoading) {
         const base64ToUint8ClampedArray = (base64: string) => {
             const binary_string = window.atob(base64);
             const len = binary_string.length;
@@ -257,7 +259,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             pageHistoryRef.current = newHistoryMap;
             pageHistoryIndexRef.current = newHistoryIndexMap;
 
-            // Restore state for all pages after loading annotations
             newHistoryMap.forEach((_, pageIndex) => {
                 const historyIdx = newHistoryIndexMap.get(pageIndex);
                 if (historyIdx !== undefined) {
@@ -277,7 +278,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             pageHistoryIndexRef.current.clear();
         }
       }
-    }, [initialAnnotations, toast, restoreState, onProjectLoadComplete]);
+    }, [initialAnnotations, isProjectLoading, toast, restoreState, onProjectLoadComplete]);
 
     const getPoint = useCallback((e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent, canvasIndex: number): Point => {
       const canvas = drawingCanvasRefs.current[canvasIndex];
@@ -507,8 +508,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         pageHistoryRef.current.clear();
         pageHistoryIndexRef.current.clear();
         for (let i = 0; i < numPages; i++) {
-          pageHistoryRef.current.set(i, []);
-          pageHistoryIndexRef.current.set(i, -1);
           // Initial blank state is saved when the Page component mounts and its canvas is sized
         }
       },
@@ -551,8 +550,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         
         const activePage = lastActivePageRef.current;
         if (pages.length === 0) { // For pinup board
-            pageHistoryRef.current.set(0, []);
-            pageHistoryIndexRef.current.set(0, -1);
+            if (!pageHistoryRef.current.has(0)) {
+                pageHistoryRef.current.set(0, []);
+                pageHistoryIndexRef.current.set(0, -1);
+                saveState(0);
+            }
         }
         updateHistoryButtons(activePage);
       },
@@ -564,6 +566,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
           pageHistoryIndexRef.current.set(page, newIndex);
           restoreState(page, newIndex);
           updateHistoryButtons(page);
+          preStrokeImageDataRef.current = null;
+          currentPathRef.current = null;
         }
       },
       redo: () => {
@@ -575,6 +579,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
           pageHistoryIndexRef.current.set(page, newIndex);
           restoreState(page, newIndex);
           updateHistoryButtons(page);
+          preStrokeImageDataRef.current = null;
+          currentPathRef.current = null;
         }
       },
       getAnnotationData: () => {
