@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { X, ArrowsExpand } from 'lucide-react';
+import { X, Expand } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export interface Snapshot {
@@ -142,7 +142,7 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
                         className="absolute -bottom-2 -right-2 bg-blue-500 text-white rounded-full p-1 z-20 cursor-nwse-resize hover:scale-110 transition-transform"
                         aria-label="Resize snapshot"
                     >
-                        <ArrowsExpand size={12} />
+                        <Expand size={12} />
                     </div>
                 </>
             )}
