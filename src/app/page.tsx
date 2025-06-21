@@ -812,6 +812,14 @@ export default function Home() {
                     </TooltipTrigger>
                     <TooltipContent side="bottom"><p>Add Note</p></TooltipContent>
                   </Tooltip>
+                  <Tooltip>
+                      <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" onClick={handleUploadImageClick} className="h-10 w-10 rounded-lg">
+                              <FileImage className="h-5 w-5" />
+                          </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom"><p>Add Image to Pinup</p></TooltipContent>
+                  </Tooltip>
                 </div>
             </div>
             
@@ -865,14 +873,6 @@ export default function Home() {
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom"><p>Open PDF or Project</p></TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={handleUploadImageClick} className="h-10 w-10 rounded-lg">
-                                <FileImage className="h-5 w-5" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom"><p>Add Image to Pinup</p></TooltipContent>
                     </Tooltip>
                      <Tooltip>
                         <TooltipTrigger asChild>

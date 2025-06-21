@@ -232,7 +232,7 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, on
                 touchAction: 'none'
             }}
             className={cn(
-                "shadow-lg bg-yellow-200/80 backdrop-blur-sm rounded-md flex flex-col",
+                "shadow-lg bg-yellow-200 rounded-md flex flex-col",
                 isSelected ? "z-10" : "z-0",
             )}
             onClick={handleBodyClick}
@@ -243,7 +243,7 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, on
                 data-drag-handle="true"
                 onMouseDown={(e) => handleInteractionStart(e, 'drag')}
                 onTouchStart={(e) => handleInteractionStart(e, 'drag')}
-                className="h-6 bg-yellow-300/90 rounded-t-md flex items-center justify-center text-gray-600/70 cursor-grab active:cursor-grabbing"
+                className="h-6 bg-yellow-300 rounded-t-md flex items-center justify-center text-gray-600/70 cursor-grab active:cursor-grabbing"
             >
             </div>
              <div className={cn(
