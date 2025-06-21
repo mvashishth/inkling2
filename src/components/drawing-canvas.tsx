@@ -162,7 +162,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       }
     }, [initialAnnotations, pages.length, restoreState, toast]);
 
-    const getPoint = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent, canvasIndex: number): Point => {
+    const getPoint = useCallback((e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent, canvasIndex: number): Point => {
       const canvas = drawingCanvasRefs.current[canvasIndex];
       if (!canvas) return { x: 0, y: 0 };
       const rect = canvas.getBoundingClientRect();
@@ -171,11 +171,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         x: ((touch ? touch.clientX : e.clientX) - rect.left),
         y: ((touch ? touch.clientY : e.clientY) - rect.top),
       };
-    };
+    }, []);
 
     const draw = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
       if (!isDrawingRef.current) return;
-      if ('preventDefault' in e) e.preventDefault();
+      if ('preventDefault' in e && e.cancelable) e.preventDefault();
 
       const pageIndex = lastActivePageRef.current;
       const point = getPoint(e, pageIndex);
@@ -285,6 +285,23 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             window.removeEventListener('mouseup', handleUp);
             window.removeEventListener('touchend', handleUp);
         };
+    }, []);
+
+    const drawRef = useRef(draw);
+    drawRef.current = draw;
+    useEffect(() => {
+        const handleMove = (e: MouseEvent | TouchEvent) => {
+            if(isDrawingRef.current) {
+                drawRef.current(e);
+            }
+        }
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('touchmove', handleMove, { passive: false });
+
+        return () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('touchmove', handleMove);
+        }
     }, []);
 
     const startDrawing = (e: React.MouseEvent | React.TouchEvent, pageIndex: number) => {
@@ -499,15 +516,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                     ref={(el) => (drawingCanvasRefs.current[index] = el)}
                     onMouseDown={(e) => startDrawing(e, index)}
                     onTouchStart={(e) => startDrawing(e, index)}
-                    onMouseMove={draw}
-                    onTouchMove={draw}
                     className={cn(
                         "absolute inset-0",
                         !tool && 'pointer-events-none',
                         tool === 'snapshot' && 'cursor-crosshair'
                     )}
                 />
-                {currentSelection && (
+                {currentSelection && currentSelection.pageIndex === index && (
                   <div 
                       className="absolute border-2 border-dashed border-blue-500 bg-blue-500/20 pointer-events-none"
                       style={{
@@ -558,8 +573,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                 ref={el => { if(el) drawingCanvasRefs.current[0] = el}}
                 onMouseDown={(e) => startDrawing(e, 0)}
                 onTouchStart={(e) => startDrawing(e, 0)}
-                onMouseMove={draw}
-                onTouchMove={draw}
+                onMouseMove={(e) => draw(e)}
+                onTouchMove={(e) => draw(e)}
                 className={cn(
                   'w-full h-full',
                   !tool && 'pointer-events-none'
@@ -578,7 +593,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       >
         <div className="max-w-5xl mx-auto">
             {pages.map((pageDataUrl, index) => (
-                <Page key={index} pageDataUrl={pageDataUrl} index={index} currentSelection={selection?.pageIndex === index ? selection : null} />
+                <Page key={index} pageDataUrl={pageDataUrl} index={index} currentSelection={selection} />
             ))}
         </div>
       </div>
