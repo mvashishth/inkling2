@@ -40,6 +40,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
     const [isDrawing, setIsDrawing] = useState(false);
     const lastPointRef = useRef<Point | null>(null);
+    const hasMovedRef = useRef(false);
 
     const historyRef = useRef<ImageData[]>([]);
     const historyIndexRef = useRef<number>(-1);
@@ -122,24 +123,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       e.preventDefault();
       const context = contextRef.current;
       if (!context) return;
+      
+      hasMovedRef.current = false;
       setIsDrawing(true);
+      
       const point = getPoint(e);
       lastPointRef.current = point;
-
-      if (tool === 'draw' || tool === 'highlight') {
-        context.globalCompositeOperation = 'source-over';
-        context.globalAlpha = tool === 'highlight' ? 0.05 : 1.0;
-        context.beginPath();
-        context.fillStyle = penColor;
-        const size = tool === 'draw' ? penSize : highlighterSize;
-        context.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
-        context.fill();
-      }
     };
 
     const draw = (e: React.MouseEvent | React.TouchEvent) => {
       e.preventDefault();
       if (!isDrawing || !contextRef.current || !lastPointRef.current) return;
+      hasMovedRef.current = true;
       const context = contextRef.current;
       const currentPoint = getPoint(e);
 
@@ -161,6 +156,30 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
     const stopDrawing = () => {
       if (!isDrawing) return;
+      
+      const context = contextRef.current;
+      if (context && !hasMovedRef.current && lastPointRef.current) {
+        // This was a click, not a drag. Draw a dot.
+        const point = lastPointRef.current;
+        const size = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
+
+        if (tool === 'draw' || tool === 'highlight') {
+            context.globalCompositeOperation = 'source-over';
+            context.globalAlpha = tool === 'highlight' ? 0.05 : 1.0;
+            context.fillStyle = penColor;
+            
+            context.beginPath();
+            context.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
+            context.fill();
+        } else if (tool === 'erase') {
+            context.globalCompositeOperation = 'destination-out';
+            context.fillStyle = 'white';
+            context.beginPath();
+            context.arc(point.x, point.y, eraserSize / 2, 0, Math.PI * 2);
+            context.fill();
+        }
+      }
+
       setIsDrawing(false);
       lastPointRef.current = null;
       saveState();
