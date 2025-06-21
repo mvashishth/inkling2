@@ -217,9 +217,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       
       pageHistoryRef.current.set(pageIndex, newHistory);
       pageHistoryIndexRef.current.set(pageIndex, newHistory.length - 1);
-
-      updateHistoryButtons(pageIndex);
-    }, [updateHistoryButtons]);
+    }, []);
 
     const restoreState = useCallback((pageIndex: number, historyIndex: number) => {
         const history = pageHistoryRef.current.get(pageIndex);
@@ -326,6 +324,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     const stopDrawing = () => {
       if (!isDrawingRef.current) return;
 
+      const pageIndex = lastActivePageRef.current;
+
       if(tool === 'snapshot' && selection) {
         const { pageIndex, startX, startY, endX, endY } = selection;
         const x = Math.min(startX, endX);
@@ -384,7 +384,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         return;
       }
       
-      const pageIndex = lastActivePageRef.current;
       const context = contextRefs.current[pageIndex];
       if (!context) return;
       
@@ -410,6 +409,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       }
       context.globalAlpha = 1.0;
       saveState(pageIndex);
+      updateHistoryButtons(pageIndex);
     };
 
     const stopDrawingRef = useRef(stopDrawing);
@@ -464,7 +464,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       isDrawingRef.current = true;
       hasMovedRef.current = false;
       lastActivePageRef.current = pageIndex;
-      updateHistoryButtons(pageIndex);
       const point = getPoint(e, pageIndex);
       
       if (tool === 'snapshot' || tool === 'note') {
@@ -501,7 +500,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         context.beginPath();
         context.moveTo(point.x, point.y);
       }
-    }, [tool, penColor, penSize, eraserSize, highlighterColor, highlighterSize, updateHistoryButtons, getPoint, onCanvasClick]);
+    }, [tool, penColor, penSize, eraserSize, highlighterColor, highlighterSize, getPoint, onCanvasClick]);
     
     useImperativeHandle(ref, () => ({
       initializePages: (numPages: number) => {
@@ -510,6 +509,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         for (let i = 0; i < numPages; i++) {
           pageHistoryRef.current.set(i, []);
           pageHistoryIndexRef.current.set(i, -1);
+          // Initial blank state is saved when the Page component mounts and its canvas is sized
         }
       },
       exportAsDataURL: () => {
@@ -550,10 +550,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         pageHistoryIndexRef.current.clear();
         
         const activePage = lastActivePageRef.current;
-        if (pages.length === 0) {
+        if (pages.length === 0) { // For pinup board
             pageHistoryRef.current.set(0, []);
             pageHistoryIndexRef.current.set(0, -1);
-            saveState(0);
         }
         updateHistoryButtons(activePage);
       },
@@ -618,7 +617,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     }));
 
     useEffect(() => {
-      if (pages.length === 0) {
+      if (pages.length === 0) { // Logic for the pinup board canvas
         const canvas = drawingCanvasRefs.current[0];
         const context = canvas?.getContext('2d', { willReadFrequently: true });
         const container = pageContainerRef.current;
@@ -639,9 +638,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                     pageHistoryRef.current.set(0, []);
                     pageHistoryIndexRef.current.set(0, -1);
                     saveState(0);
+                    updateHistoryButtons(0);
                   }
                 }
-                updateHistoryButtons(0);
             }
             const resizeObserver = new ResizeObserver(resize);
             resizeObserver.observe(container);
