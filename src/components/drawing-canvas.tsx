@@ -38,7 +38,7 @@ export interface DrawingCanvasRef {
 
 interface DrawingCanvasProps {
   pages: string[];
-  tool: 'draw' | 'erase' | 'highlight' | 'snapshot' | 'inkling' | null;
+  tool: 'draw' | 'erase' | 'highlight' | 'snapshot' | 'inkling' | 'note' | null;
   penColor: string;
   penSize: number;
   eraserSize: number;
@@ -48,6 +48,7 @@ interface DrawingCanvasProps {
   initialAnnotations: AnnotationData | null;
   toast: (options: { title: string; description: string; variant?: 'default' | 'destructive' }) => void;
   onSnapshot?: (imageDataUrl: string, pageIndex: number, rect: { x: number; y: number; width: number; height: number }) => void;
+  onNoteCreate?: (rect: { x: number; y: number; width: number; height: number }) => void;
   onCanvasClick?: (pageIndex: number, point: Point) => void;
 }
 
@@ -136,7 +137,7 @@ const Page = React.memo(({
                 className={cn(
                     "absolute inset-0",
                     !tool && 'pointer-events-none',
-                    (tool === 'snapshot' || tool === 'inkling') && 'cursor-crosshair'
+                    (tool === 'snapshot' || tool === 'inkling' || tool === 'note') && 'cursor-crosshair'
                 )}
             />
             {currentSelection && currentSelection.pageIndex === index && (
@@ -157,7 +158,7 @@ Page.displayName = 'Page';
 
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange, initialAnnotations, toast, onSnapshot, onCanvasClick }, ref) => {
+  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange, initialAnnotations, toast, onSnapshot, onNoteCreate, onCanvasClick }, ref) => {
     const isDrawingRef = useRef(false);
     const hasMovedRef = useRef(false);
 
@@ -281,7 +282,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       const pageIndex = lastActivePageRef.current;
       const point = getPoint(e, pageIndex);
 
-      if(tool === 'snapshot' && selection){
+      if((tool === 'snapshot' || tool === 'note') && selection){
         setSelection(prev => prev ? { ...prev, endX: point.x, endY: point.y } : null);
         return;
       }
@@ -346,6 +347,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
               onSnapshot(dataUrl, pageIndex, { x, y, width, height });
             }
           }
+        }
+        setSelection(null);
+        isDrawingRef.current = false;
+        return;
+      }
+
+      if (tool === 'note' && selection) {
+        const { startX, startY, endX, endY } = selection;
+        const x = Math.min(startX, endX);
+        const y = Math.min(startY, endY);
+        const width = Math.abs(endX - startX);
+        const height = Math.abs(endY - startY);
+        if (width > 20 && height > 20 && onNoteCreate) {
+          onNoteCreate({ x, y, width, height });
         }
         setSelection(null);
         isDrawingRef.current = false;
@@ -432,7 +447,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       updateHistoryButtons(pageIndex);
       const point = getPoint(e, pageIndex);
       
-      if (tool === 'snapshot') {
+      if (tool === 'snapshot' || tool === 'note') {
         setSelection({ pageIndex, startX: point.x, startY: point.y, endX: point.x, endY: point.y });
         return;
       }
@@ -619,10 +634,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                 onTouchStart={(e) => startDrawing(e, 0)}
                 className={cn(
                   'w-full h-full',
-                  !tool && 'pointer-events-none'
+                  !tool && 'pointer-events-none',
+                  tool === 'note' && 'cursor-crosshair'
                 )}
                 data-ai-hint="drawing layer"
               />
+               {selection && (
+                <div 
+                    className="absolute border-2 border-dashed border-blue-500 bg-blue-500/20 pointer-events-none"
+                    style={{
+                        left: Math.min(selection.startX, selection.endX),
+                        top: Math.min(selection.startY, selection.endY),
+                        width: Math.abs(selection.endX - selection.startX),
+                        height: Math.abs(selection.endY - selection.startY),
+                    }}
+                />
+              )}
             </div>
           </div>
         )

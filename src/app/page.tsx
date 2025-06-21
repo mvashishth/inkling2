@@ -15,10 +15,12 @@ import {
   Camera,
   Link as LinkIcon,
   XCircle,
+  StickyNote,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DrawingCanvas, type DrawingCanvasRef, type AnnotationData } from '@/components/drawing-canvas';
 import { SnapshotItem, type Snapshot } from '@/components/snapshot-item';
+import { NoteItem, type Note } from '@/components/note-item';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
@@ -39,7 +41,7 @@ if (typeof window !== 'undefined') {
   ).toString();
 }
 
-type Tool = 'draw' | 'erase' | 'highlight' | 'snapshot' | 'inkling';
+type Tool = 'draw' | 'erase' | 'highlight' | 'snapshot' | 'inkling' | 'note';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -110,6 +112,9 @@ export default function Home() {
   const [snapshots, setSnapshots] = React.useState<Snapshot[]>([]);
   const [selectedSnapshot, setSelectedSnapshot] = React.useState<string | null>(null);
 
+  const [notes, setNotes] = React.useState<Note[]>([]);
+  const [selectedNote, setSelectedNote] = React.useState<string | null>(null);
+
   const [inklings, setInklings] = React.useState<Inkling[]>([]);
   const [pendingInkling, setPendingInkling] = React.useState<PdfPoint | null>(null);
   const [inklingRenderData, setInklingRenderData] = React.useState<InklingRenderData[]>([]);
@@ -119,7 +124,9 @@ export default function Home() {
   const canUndo = activeCanvas === 'pdf' ? pdfCanUndo : pinupCanUndo;
   const canRedo = activeCanvas === 'pdf' ? pdfCanRedo : pinupCanRedo;
   const activeCanvasRef = activeCanvas === 'pdf' ? pdfCanvasRef : pinupCanvasRef;
-  const currentTool = activeCanvas === 'pdf' ? tool : null;
+  
+  const pdfTool = ['draw', 'erase', 'highlight', 'snapshot', 'inkling'].includes(tool || '') ? tool : null;
+  const pinupTool = ['note'].includes(tool || '') ? tool : null;
 
   const handleToolClick = (selectedTool: Tool) => {
     setTool((currentTool) => (currentTool === selectedTool ? null : selectedTool));
@@ -170,6 +177,7 @@ export default function Home() {
         annotations: annotationData,
         snapshots: snapshots,
         inklings: inklings,
+        notes: notes,
         fileType: 'inkling-project'
     };
     
@@ -225,6 +233,7 @@ export default function Home() {
     setPageImages([]);
     setSnapshots([]);
     setInklings([]);
+    setNotes([]);
     pdfCanvasRef.current?.clear();
     pinupCanvasRef.current?.clear();
 
@@ -290,6 +299,7 @@ export default function Home() {
                   setAnnotationDataToLoad(projectData.annotations);
                   setSnapshots(projectData.snapshots || []);
                   setInklings(projectData.inklings || []);
+                  setNotes(projectData.notes || []);
                   await loadPdf(arrayBuffer.slice(0));
               } else {
                   throw new Error("Invalid project file format.");
@@ -311,6 +321,7 @@ export default function Home() {
         setAnnotationDataToLoad(null);
         setSnapshots([]);
         setInklings([]);
+        setNotes([]);
         await loadPdf(arrayBuffer.slice(0));
     } else {
         toast({
@@ -332,11 +343,13 @@ export default function Home() {
         setAnnotationDataToLoad(null);
         setSnapshots([]);
         setInklings([]);
+        setNotes([]);
     } else {
         pinupCanvasRef.current?.clear();
         const pdfSnapshots = snapshots.filter(s => inklings.some(i => i.snapshotPoint.snapshotId === s.id));
         setSnapshots(pdfSnapshots);
         setInklings([]);
+        setNotes([]);
     }
   };
 
@@ -367,6 +380,25 @@ export default function Home() {
     setSnapshots(snapshots => snapshots.filter(s => s.id !== id));
     setInklings(inklings => inklings.filter(i => i.snapshotPoint.snapshotId !== id));
   }, []);
+
+  const handleNoteCreate = React.useCallback((rect: { x: number; y: number; width: number; height: number }) => {
+    const newNote: Note = {
+      id: `note_${Date.now()}`,
+      content: '',
+      ...rect,
+    };
+    setNotes(prev => [...prev, newNote]);
+    setTool(null);
+  }, []);
+
+  const updateNote = React.useCallback((id: string, newProps: Partial<Omit<Note, 'id'>>) => {
+    setNotes(notes => notes.map(n => n.id === id ? {...n, ...newProps} : n));
+  }, []);
+
+  const deleteNote = React.useCallback((id: string) => {
+    setNotes(notes => notes.filter(n => n.id !== id));
+  }, []);
+
 
   const handleSnapshotClick = React.useCallback((snapshot: Snapshot, e: React.MouseEvent<HTMLDivElement>) => {
     if (pendingInkling) {
@@ -490,7 +522,7 @@ export default function Home() {
       pdfView?.removeEventListener('scroll', throttledUpdate);
       pinupView?.removeEventListener('scroll', throttledUpdate);
     };
-  }, [inklings, snapshots, pageImages, pendingInkling]);
+  }, [inklings, snapshots, pageImages, pendingInkling, notes]);
 
   const sliderValue = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
   const sliderMin = tool === 'draw' ? 1 : tool === 'highlight' ? 10 : 2;
@@ -570,6 +602,19 @@ export default function Home() {
                     </TooltipTrigger>
                     <TooltipContent side="bottom"><p>Create Link</p></TooltipContent>
                   </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={tool === 'note' ? 'secondary' : 'ghost'}
+                        size="icon"
+                        onClick={() => handleToolClick('note')}
+                        className="h-10 w-10 rounded-lg"
+                      >
+                        <StickyNote className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Add Note</p></TooltipContent>
+                  </Tooltip>
                 </div>
             </div>
 
@@ -632,7 +677,7 @@ export default function Home() {
             </div>
         </aside>
 
-        {tool && tool !== 'snapshot' && tool !== 'inkling' && activeCanvas === 'pdf' && (
+        {tool && ['draw', 'erase', 'highlight'].includes(tool) && activeCanvas === 'pdf' && (
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-x-8 px-4 py-2 border-b bg-card shadow-sm z-10">
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground whitespace-nowrap">
@@ -697,6 +742,7 @@ export default function Home() {
             onMouseDownCapture={() => {
               setActiveCanvas('pdf');
               setSelectedSnapshot(null);
+              setSelectedNote(null);
             }}
           >
             <div 
@@ -719,7 +765,7 @@ export default function Home() {
               <DrawingCanvas
                 ref={pdfCanvasRef}
                 pages={pageImages}
-                tool={currentTool}
+                tool={pdfTool}
                 penColor={penColor}
                 penSize={penSize}
                 eraserSize={eraserSize}
@@ -737,17 +783,18 @@ export default function Home() {
           <div className="w-2/5 flex flex-col">
               <header className="p-2 text-center font-semibold bg-card border-b">Pinup Board</header>
               <div 
-                className="flex-1 relative bg-background overflow-auto p-[1%]"
+                className="flex-1 relative bg-background overflow-auto"
                 onMouseDownCapture={(e) => {
                   if (e.target === e.currentTarget) {
                     setActiveCanvas('pinup');
                     setSelectedSnapshot(null);
+                    setSelectedNote(null);
                   }
                 }}
               >
                 <div
                     ref={pinupContainerRef}
-                    className="relative w-full h-full"
+                    className="relative w-full h-full p-[1%]"
                     onMouseDownCapture={() => {
                         setActiveCanvas('pinup');
                     }}
@@ -755,7 +802,7 @@ export default function Home() {
                     <DrawingCanvas
                         ref={pinupCanvasRef}
                         pages={[]}
-                        tool={null}
+                        tool={pinupTool}
                         penColor={penColor}
                         penSize={penSize}
                         eraserSize={eraserSize}
@@ -764,6 +811,7 @@ export default function Home() {
                         onHistoryChange={handlePinupHistoryChange}
                         initialAnnotations={null}
                         toast={toast}
+                        onNoteCreate={handleNoteCreate}
                     />
                     {snapshots.map(snapshot => (
                       <SnapshotItem 
@@ -774,6 +822,17 @@ export default function Home() {
                         onClick={(e) => handleSnapshotClick(snapshot, e)}
                         isSelected={selectedSnapshot === snapshot.id}
                         onSelect={() => setSelectedSnapshot(snapshot.id)}
+                        containerRef={pinupContainerRef}
+                      />
+                    ))}
+                    {notes.map(note => (
+                      <NoteItem
+                        key={note.id}
+                        note={note}
+                        onUpdate={updateNote}
+                        onDelete={deleteNote}
+                        isSelected={selectedNote === note.id}
+                        onSelect={() => setSelectedNote(note.id)}
                         containerRef={pinupContainerRef}
                       />
                     ))}
