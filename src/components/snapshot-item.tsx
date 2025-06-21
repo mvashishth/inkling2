@@ -1,7 +1,6 @@
-
 "use client";
 
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import { X, Expand } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -29,12 +28,46 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
     const itemRef = useRef<HTMLDivElement>(null);
     const interactionRef = useRef<{
         type: 'drag' | 'resize' | null;
-        offsetX: number;
-        offsetY: number;
+        startX: number;
+        startY: number;
+        snapshotStartX: number;
+        snapshotStartY: number;
         startWidth: number;
         startHeight: number;
-    }>({ type: null, offsetX: 0, offsetY: 0, startWidth: 0, startHeight: 0 });
+    }>({ type: null, startX: 0, startY: 0, snapshotStartX: 0, snapshotStartY: 0, startWidth: 0, startHeight: 0 });
     const hasMovedRef = useRef(false);
+
+    const handleMouseMove = useCallback((e: MouseEvent) => {
+        const { type, startX, startY, snapshotStartX, snapshotStartY, startWidth, startHeight } = interactionRef.current;
+        if (!type) return;
+
+        hasMovedRef.current = true;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+
+        if (type === 'drag') {
+            onUpdate(snapshot.id, {
+                x: snapshotStartX + dx,
+                y: snapshotStartY + dy,
+            });
+        } else if (type === 'resize') {
+            onUpdate(snapshot.id, {
+                width: Math.max(50, startWidth + dx),
+                height: Math.max(50, startHeight + dy),
+            });
+        }
+    }, [snapshot.id, onUpdate]);
+
+    const handleMouseUp = useCallback(() => {
+        interactionRef.current.type = null;
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+        
+        // Use a timeout to reset hasMovedRef to allow click event to process
+        setTimeout(() => {
+            hasMovedRef.current = false;
+        }, 0);
+    }, [handleMouseMove]);
 
     const handleInteractionStart = (
         e: React.MouseEvent,
@@ -47,8 +80,10 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
         
         interactionRef.current = {
             type,
-            offsetX: e.clientX,
-            offsetY: e.clientY,
+            startX: e.clientX,
+            startY: e.clientY,
+            snapshotStartX: snapshot.x,
+            snapshotStartY: snapshot.y,
             startWidth: snapshot.width,
             startHeight: snapshot.height,
         };
@@ -56,41 +91,6 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp);
     };
-
-    const handleMouseMove = useCallback((e: MouseEvent) => {
-        const { type, offsetX, offsetY, startWidth, startHeight } = interactionRef.current;
-        if (!type) return;
-
-        hasMovedRef.current = true;
-        const dx = e.clientX - offsetX;
-        const dy = e.clientY - offsetY;
-
-        if (type === 'drag') {
-            onUpdate(snapshot.id, {
-                x: snapshot.x + dx,
-                y: snapshot.y + dy,
-            });
-        } else if (type === 'resize') {
-            onUpdate(snapshot.id, {
-                width: Math.max(50, startWidth + dx),
-                height: Math.max(50, startHeight + dy),
-            });
-        }
-        
-        interactionRef.current.offsetX = e.clientX;
-        interactionRef.current.offsetY = e.clientY;
-    }, [snapshot, onUpdate]);
-
-    const handleMouseUp = useCallback(() => {
-        interactionRef.current.type = null;
-        window.removeEventListener('mousemove', handleMouseMove);
-        window.removeEventListener('mouseup', handleMouseUp);
-        
-        // Use a timeout to reset hasMovedRef to allow click event to process
-        setTimeout(() => {
-            hasMovedRef.current = false;
-        }, 0);
-    }, [handleMouseMove]);
     
     useEffect(() => {
         // Cleanup listeners on unmount
