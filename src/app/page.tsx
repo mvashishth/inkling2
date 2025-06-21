@@ -149,15 +149,15 @@ export default function Home() {
     URL.revokeObjectURL(url);
   };
 
-  const handlePdfHistoryChange = (canUndo: boolean, canRedo: boolean) => {
+  const handlePdfHistoryChange = React.useCallback((canUndo: boolean, canRedo: boolean) => {
     setPdfCanUndo(canUndo);
     setPdfCanRedo(canRedo);
-  };
+  }, []);
 
-  const handlePinupHistoryChange = (canUndo: boolean, canRedo: boolean) => {
+  const handlePinupHistoryChange = React.useCallback((canUndo: boolean, canRedo: boolean) => {
     setPinupCanUndo(canUndo);
     setPinupCanRedo(canRedo);
-  };
+  }, []);
 
   const handleSliderChange = (value: number[]) => {
     if (tool === 'draw') {
@@ -288,7 +288,7 @@ export default function Home() {
     }
   };
 
-  const handleSnapshot = (
+  const handleSnapshot = React.useCallback((
     imageDataUrl: string,
     sourcePage: number,
     sourceRect: { x: number; y: number; width: number; height: number }
@@ -305,22 +305,22 @@ export default function Home() {
     };
     setSnapshots((prev) => [...prev, newSnapshot]);
     setTool(null);
-  };
+  }, []);
 
-  const updateSnapshot = (id: string, newProps: Partial<Omit<Snapshot, 'id'>>) => {
+  const updateSnapshot = React.useCallback((id: string, newProps: Partial<Omit<Snapshot, 'id'>>) => {
     setSnapshots(snapshots => snapshots.map(s => s.id === id ? {...s, ...newProps} : s));
-  };
+  }, []);
 
-  const deleteSnapshot = (id: string) => {
+  const deleteSnapshot = React.useCallback((id: string) => {
     setSnapshots(snapshots => snapshots.filter(s => s.id !== id));
-  };
+  }, []);
 
-  const handleSnapshotClick = (snapshot: Snapshot) => {
+  const handleSnapshotClick = React.useCallback((snapshot: Snapshot) => {
     const pageElement = pdfCanvasRef.current?.getPageElement(snapshot.sourcePage);
     if (pageElement) {
       pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  };
+  }, []);
 
   const sliderValue = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
   const sliderMin = tool === 'draw' ? 1 : tool === 'highlight' ? 10 : 2;
