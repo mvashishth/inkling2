@@ -11,8 +11,6 @@ import {
   Trash2,
   Highlighter,
   FileUp,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DrawingCanvas, type DrawingCanvasRef } from '@/components/drawing-canvas';
@@ -48,13 +46,10 @@ export default function Home() {
   const [canUndo, setCanUndo] = React.useState(false);
   const [canRedo, setCanRedo] = React.useState(false);
 
-  const [pdfDoc, setPdfDoc] = React.useState<pdfjsLib.PDFDocumentProxy | null>(null);
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const [totalPages, setTotalPages] = React.useState(0);
+  const [pageImages, setPageImages] = React.useState<string[]>([]);
   
   const [isPdfLoading, setIsPdfLoading] = React.useState(false);
   const [pdfLoadProgress, setPdfLoadProgress] = React.useState(0);
-  const [isChangingPage, setIsChangingPage] = React.useState(false);
 
   const canvasRef = React.useRef<DrawingCanvasRef>(null);
   const pdfInputRef = React.useRef<HTMLInputElement>(null);
@@ -65,11 +60,11 @@ export default function Home() {
   };
 
   const handleExport = () => {
-    const dataUrl = canvasRef.current?.exportAsDataURL();
-    if (dataUrl) {
+    const exportData = canvasRef.current?.exportAsDataURL();
+    if (exportData?.dataUrl) {
       const link = document.createElement('a');
-      link.href = dataUrl;
-      link.download = `inkling-drawing-page-${currentPage}.png`;
+      link.href = exportData.dataUrl;
+      link.download = `inkling-drawing-page-${exportData.pageNum}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -95,96 +90,45 @@ export default function Home() {
     pdfInputRef.current?.click();
   };
 
-  const renderPage = async (
-    pageNum: number,
-    doc: pdfjsLib.PDFDocumentProxy
-  ) => {
-    setIsChangingPage(true);
-    const canvasDimensions = canvasRef.current?.getDimensions();
-
-    if (!canvasDimensions || canvasDimensions.width === 0 || canvasDimensions.height === 0) {
-      toast({
-        title: "Canvas not ready",
-        description: "The drawing canvas is not yet available to render the PDF.",
-        variant: "destructive",
-      });
-      setIsChangingPage(false);
-      return;
-    }
-
-    try {
-      const page = await doc.getPage(pageNum);
-      const unscaledViewport = page.getViewport({ scale: 1.0 });
-
-      const scale = Math.min(
-        canvasDimensions.width / unscaledViewport.width,
-        canvasDimensions.height / unscaledViewport.height
-      );
-      const viewport = page.getViewport({ scale });
-
-      const finalCanvas = document.createElement('canvas');
-      finalCanvas.width = canvasDimensions.width;
-      finalCanvas.height = canvasDimensions.height;
-      const finalContext = finalCanvas.getContext('2d');
-      if (!finalContext) return;
-      
-      finalContext.fillStyle = 'white';
-      finalContext.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
-
-      const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = viewport.width;
-      pageCanvas.height = viewport.height;
-      const pageContext = pageCanvas.getContext('2d');
-      if (!pageContext) return;
-
-      await page.render({
-        canvasContext: pageContext,
-        viewport: viewport,
-      }).promise;
-      
-      const offsetX = (canvasDimensions.width - viewport.width) / 2;
-      const offsetY = (canvasDimensions.height - viewport.height) / 2;
-      finalContext.drawImage(pageCanvas, offsetX, offsetY);
-
-      const dataUrl = finalCanvas.toDataURL('image/png');
-      canvasRef.current?.switchPage(pageNum, dataUrl);
-
-    } catch (error) {
-      console.error('Failed to render page:', error);
-      toast({
-        title: "Error rendering page",
-        description: "There was a problem rendering the PDF page.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsChangingPage(false);
-    }
-  }
-
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsPdfLoading(true);
     setPdfLoadProgress(0);
+    setPageImages([]);
+    canvasRef.current?.clear();
+
 
     try {
       const arrayBuffer = await file.arrayBuffer();
 
       const loadingTask = pdfjsLib.getDocument(arrayBuffer);
       loadingTask.onProgress = (progressData) => {
-        const progress = Math.round((progressData.loaded / progressData.total) * 100);
-        setPdfLoadProgress(progress);
+        // This progress is for download, we'll manually update for rendering
       };
       
       const pdf = await loadingTask.promise;
+      const numPages = pdf.numPages;
+      canvasRef.current?.initializePages(numPages);
 
-      setPdfDoc(pdf);
-      setTotalPages(pdf.numPages);
+      const newPageImages: string[] = [];
       
-      canvasRef.current?.clear();
-      await renderPage(1, pdf);
-      setCurrentPage(1);
+      for (let i = 1; i <= numPages; i++) {
+        setPdfLoadProgress(Math.round((i / numPages) * 100));
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2.0 }); // Render at high resolution for quality
+
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const context = canvas.getContext('2d');
+        if (!context) continue;
+
+        await page.render({ canvasContext: context, viewport: viewport }).promise;
+        newPageImages.push(canvas.toDataURL('image/png'));
+      }
+      setPageImages(newPageImages);
 
     } catch (error) {
       console.error('Failed to render PDF:', error);
@@ -193,22 +137,16 @@ export default function Home() {
         description: "There was a problem rendering the PDF file. Please try another file.",
         variant: "destructive",
       });
-      setPdfDoc(null);
-      setTotalPages(0);
-      setCurrentPage(1);
+      setPageImages([]);
     } finally {
       if (e.target) e.target.value = '';
       setIsPdfLoading(false);
     }
   };
-
-  const changePage = async (delta: number) => {
-    if (!pdfDoc) return;
-    const newPage = currentPage + delta;
-    if (newPage > 0 && newPage <= totalPages) {
-      await renderPage(newPage, pdfDoc);
-      setCurrentPage(newPage);
-    }
+  
+  const handleClear = () => {
+    canvasRef.current?.clear();
+    setPageImages([]);
   };
 
   const sliderValue = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
@@ -328,28 +266,6 @@ export default function Home() {
                   </Tooltip>
                 </div>
                 
-                {totalPages > 0 && (
-                  <div className="flex items-center gap-1 text-sm">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" onClick={() => changePage(-1)} disabled={currentPage <= 1 || isChangingPage} className="h-10 w-10 rounded-lg">
-                          <ChevronLeft className="h-5 w-5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom"><p>Previous Page</p></TooltipContent>
-                    </Tooltip>
-                    <span className='w-20 text-center font-medium'>{isChangingPage ? "..." : `Page ${currentPage} of ${totalPages}`}</span>
-                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" onClick={() => changePage(1)} disabled={currentPage >= totalPages || isChangingPage} className="h-10 w-10 rounded-lg">
-                          <ChevronRight className="h-5 w-5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom"><p>Next Page</p></TooltipContent>
-                    </Tooltip>
-                  </div>
-                )}
-
                 <Separator orientation="vertical" className="h-8 mx-2" />
 
                 <div className="flex items-center gap-1">
@@ -363,7 +279,7 @@ export default function Home() {
                     </Tooltip>
                     <Tooltip>
                         <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={() => { canvasRef.current?.clear(); setTotalPages(0); setCurrentPage(1); setPdfDoc(null); }} className="h-10 w-10 rounded-lg">
+                            <Button variant="ghost" size="icon" onClick={handleClear} className="h-10 w-10 rounded-lg">
                             <Trash2 className="h-5 w-5 text-destructive" />
                             </Button>
                         </TooltipTrigger>
@@ -382,11 +298,11 @@ export default function Home() {
         </aside>
 
         <main className="flex-1 relative bg-background overflow-auto">
-          {(isPdfLoading || isChangingPage) && (
+          {isPdfLoading && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
-                <p className="mb-4 text-lg font-medium">{isChangingPage ? `Loading Page ${currentPage}...` : 'Loading PDF...'}</p>
-                {isPdfLoading && <Progress value={pdfLoadProgress} className="w-1/2 max-w-sm" />}
-                {isPdfLoading && <p className="mt-2 text-sm text-muted-foreground">{pdfLoadProgress}%</p>}
+                <p className="mb-4 text-lg font-medium">{'Loading PDF...'}</p>
+                <Progress value={pdfLoadProgress} className="w-1/2 max-w-sm" />
+                <p className="mt-2 text-sm text-muted-foreground">{pdfLoadProgress}%</p>
             </div>
           )}
           <input
@@ -398,6 +314,7 @@ export default function Home() {
           />
           <DrawingCanvas
             ref={canvasRef}
+            pages={pageImages}
             tool={tool}
             penColor={penColor}
             penSize={penSize}
