@@ -445,7 +445,7 @@ export default function Home() {
             </div>
         </aside>
 
-        {tool && tool !== 'snapshot' && (
+        {tool && tool !== 'snapshot' && activeCanvas === 'pdf' && (
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-x-8 px-4 py-2 border-b bg-card shadow-sm z-10">
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground whitespace-nowrap">
@@ -554,7 +554,7 @@ export default function Home() {
                 <DrawingCanvas
                     ref={pinupCanvasRef}
                     pages={[]}
-                    tool={tool}
+                    tool={null}
                     penColor={penColor}
                     penSize={penSize}
                     eraserSize={eraserSize}
