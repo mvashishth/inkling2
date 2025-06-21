@@ -373,10 +373,10 @@ export default function Home() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+    if (!['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
         toast({
             title: "Unsupported File Type",
-            description: "Please upload a PNG or JPG/JPEG file.",
+            description: "Please upload a PNG, JPG, or JPEG file.",
             variant: "destructive",
         });
         return;
@@ -641,21 +641,27 @@ export default function Home() {
       }
     } else { // 'pdf' endpoint clicked, go to pinup item
       const { targetId, targetType, relY } = inkling.pinupPoint;
-      const selector = targetType === 'snapshot' 
-        ? `[data-snapshot-id="${targetId}"]` 
-        : targetType === 'note'
-        ? `[data-note-id="${targetId}"]`
-        : `[data-image-id="${targetId}"]`;
-      
-      const pinupElement = pinupContainerRef.current?.querySelector(selector) as HTMLDivElement;
-      const pinupScrollContainer = pinupScrollContainerRef.current;
-      
-      if (pinupElement && pinupScrollContainer) {
-        const containerRect = pinupScrollContainer.getBoundingClientRect();
-        const pinupElementRect = pinupElement.getBoundingClientRect();
 
-        const pointY_relative_pixels = relY * pinupElementRect.height;
-        const pointY_absolute = pinupElement.offsetTop + pointY_relative_pixels;
+      const pinupScrollContainer = pinupScrollContainerRef.current;
+      if (!pinupScrollContainer) return;
+
+      const containerRect = pinupScrollContainer.getBoundingClientRect();
+
+      let targetItem: Snapshot | Note | UploadedImage | undefined;
+      if (targetType === 'snapshot') {
+        targetItem = snapshots.find(s => s.id === targetId);
+      } else if (targetType === 'note') {
+        targetItem = notes.find(n => n.id === targetId);
+      } else if (targetType === 'image') {
+        targetItem = uploadedImages.find(i => i.id === targetId);
+      }
+
+      if (targetItem) {
+        const itemY = targetItem.y;
+        const itemHeight = targetItem.height;
+
+        const pointY_relative_pixels = relY * itemHeight;
+        const pointY_absolute = itemY + pointY_relative_pixels;
         const targetScrollTop = pointY_absolute - (containerRect.height / 2);
 
         pinupScrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
@@ -703,14 +709,28 @@ export default function Home() {
         inklings.forEach(inkling => {
             const pdfPageElement = pdfCanvasRef.current?.getPageElement(inkling.pdfPoint.pageIndex)?.querySelector('canvas');
             const { targetId, targetType, relX: pinupRelX, relY: pinupRelY } = inkling.pinupPoint;
-            const selector = targetType === 'snapshot'
-                ? `[data-snapshot-id="${targetId}"]`
-                : targetType === 'note' 
-                ? `[data-note-id="${targetId}"]`
-                : `[data-image-id="${targetId}"]`;
-            const pinupElement = pinupContainerRef.current?.querySelector(selector) as HTMLDivElement;
             
-            if (pdfPageElement && pinupElement) {
+            let pinupElement: HTMLDivElement | null = null;
+            let targetItem: Snapshot | Note | UploadedImage | undefined;
+
+            if (targetType === 'snapshot') {
+                targetItem = snapshots.find(s => s.id === targetId);
+            } else if (targetType === 'note') {
+                targetItem = notes.find(n => n.id === targetId);
+            } else if (targetType === 'image') {
+                targetItem = uploadedImages.find(i => i.id === targetId);
+            }
+            
+            if (targetItem) {
+                const selector = targetType === 'snapshot'
+                    ? `[data-snapshot-id="${targetId}"]`
+                    : targetType === 'note' 
+                    ? `[data-note-id="${targetId}"]`
+                    : `[data-image-id="${targetId}"]`;
+                pinupElement = pinupContainerRef.current?.querySelector(selector) as HTMLDivElement;
+            }
+
+            if (pdfPageElement && pinupElement && targetItem) {
                 const pdfRect = pdfPageElement.getBoundingClientRect();
                 const pinupRect = pinupElement.getBoundingClientRect();
 
@@ -760,10 +780,16 @@ export default function Home() {
     pdfView?.addEventListener('scroll', throttledUpdate);
     pinupView?.addEventListener('scroll', throttledUpdate);
     
+    const observer = new MutationObserver(throttledUpdate);
+    if(pinupContainerRef.current) {
+        observer.observe(pinupContainerRef.current, { childList: true, subtree: true, attributes: true });
+    }
+    
     return () => {
       window.removeEventListener('resize', throttledUpdate);
       pdfView?.removeEventListener('scroll', throttledUpdate);
       pinupView?.removeEventListener('scroll', throttledUpdate);
+      observer.disconnect();
     };
   }, [inklings, snapshots, pageImages, pendingInkling, notes, uploadedImages, viewerWidth]);
 
@@ -920,7 +946,7 @@ export default function Home() {
             </div>
         </aside>
 
-        <div className="flex items-center justify-center px-4 py-1 border-b bg-card shadow-sm z-20">
+        <div className="flex items-center justify-center px-4 py-1 border-b bg-card shadow-sm z-20 h-[52px]">
             <Tooltip>
                 <TooltipTrigger asChild>
                     <div className="w-full max-w-xs flex items-center gap-2">
@@ -1031,7 +1057,7 @@ export default function Home() {
                   type="file"
                   ref={imageInputRef}
                   onChange={handleImageFileSelect}
-                  accept="image/png,image/jpeg"
+                  accept="image/png,image/jpeg,image/jpg"
                   className="hidden"
               />
               <DrawingCanvas
