@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useRef } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { X, Expand } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -19,172 +19,143 @@ export interface Snapshot {
 interface SnapshotItemProps {
     snapshot: Snapshot;
     onUpdate: (id: string, newProps: Partial<Omit<Snapshot, 'id'>>) => void;
-    onDelete: (id: string) => void;
+    onDelete: (id:string) => void;
     onClick: () => void;
     isSelected: boolean;
     onSelect: () => void;
     containerRef: React.RefObject<HTMLDivElement>;
 }
 
+type InteractionType = 'drag' | 'resize';
+
 export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, onDelete, onClick, isSelected, onSelect, containerRef }) => {
     const itemRef = useRef<HTMLDivElement>(null);
+    const [interactionType, setInteractionType] = useState<InteractionType | null>(null);
+
     const interactionStartRef = useRef<{
-        type: 'drag' | 'resize';
-        clientX: number;
-        clientY: number;
+        startX: number;
+        startY: number;
         snapshotX: number;
         snapshotY: number;
         snapshotWidth: number;
         snapshotHeight: number;
+        hasDragged: boolean;
     } | null>(null);
 
-    const handleInteractionStart = (e: React.MouseEvent | React.TouchEvent, type: 'drag' | 'resize') => {
-        if (!itemRef.current || !containerRef.current) return;
-        
-        e.preventDefault();
+    const handleInteractionStart = (e: React.MouseEvent | React.TouchEvent, type: InteractionType) => {
         e.stopPropagation();
-
+        
         const isTouchEvent = 'touches' in e;
-        const startX = isTouchEvent ? e.touches[0].clientX : e.clientX;
-        const startY = isTouchEvent ? e.touches[0].clientY : e.clientY;
+        const point = isTouchEvent ? e.touches[0] : e;
 
         interactionStartRef.current = {
-            type: type,
-            clientX: startX,
-            clientY: startY,
+            startX: point.clientX,
+            startY: point.clientY,
             snapshotX: snapshot.x,
             snapshotY: snapshot.y,
             snapshotWidth: snapshot.width,
             snapshotHeight: snapshot.height,
+            hasDragged: false,
         };
+        setInteractionType(type);
+    };
 
-        const handleMove = (moveEvent: MouseEvent | TouchEvent) => {
-            if ('preventDefault' in moveEvent && moveEvent.cancelable) {
-                moveEvent.preventDefault();
-            }
+    useEffect(() => {
+        if (!interactionType) return;
+
+        const handleMove = (e: MouseEvent | TouchEvent) => {
             if (!itemRef.current || !containerRef.current || !interactionStartRef.current) return;
+            e.preventDefault();
 
-            const isMoveTouchEvent = 'touches' in moveEvent;
-            const moveX = isMoveTouchEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
-            const moveY = isMoveTouchEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
-            
-            const dx = moveX - interactionStartRef.current.clientX;
-            const dy = moveY - interactionStartRef.current.clientY;
+            const isTouchEvent = 'touches' in e;
+            const point = isTouchEvent ? e.touches[0] : e;
 
-            if (interactionStartRef.current.type === 'drag') {
-                const { clientWidth, clientHeight } = containerRef.current;
-                const { snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStartRef.current;
-                
-                let newX = snapshotX + dx;
-                let newY = snapshotY + dy;
+            const dx = point.clientX - interactionStartRef.current.startX;
+            const dy = point.clientY - interactionStartRef.current.startY;
 
-                newX = Math.max(0, Math.min(newX, clientWidth - snapshotWidth));
-                newY = Math.max(0, Math.min(newY, clientHeight - snapshotHeight));
+            if (!interactionStartRef.current.hasDragged && Math.sqrt(dx*dx + dy*dy) > 5) {
+                interactionStartRef.current.hasDragged = true;
+            }
 
-                itemRef.current!.style.transform = `translate(${newX - snapshotX}px, ${newY - snapshotY}px)`;
-            } else { // resize
-                const { snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStartRef.current;
-                const { clientWidth, clientHeight } = containerRef.current;
+            if (interactionType === 'drag') {
+                const { snapshotX, snapshotY } = interactionStartRef.current;
+                const newX = snapshotX + dx;
+                const newY = snapshotY + dy;
+                itemRef.current.style.transform = `translate(${newX - snapshotX}px, ${newY - snapshotY}px)`;
+            } else if (interactionType === 'resize') {
+                const { snapshotWidth, snapshotHeight } = interactionStartRef.current;
                 const aspectRatio = snapshotHeight / snapshotWidth;
+                const newWidth = Math.max(50, snapshotWidth + dx);
+                const newHeight = newWidth * aspectRatio;
 
-                let newWidth = Math.max(50, snapshotWidth + dx);
-                let newHeight = newWidth * aspectRatio;
-
-                if (newWidth > clientWidth) {
-                    newWidth = clientWidth * 0.9;
-                    newHeight = newWidth * aspectRatio;
-                }
-                
-                if (snapshotX + newWidth > clientWidth) {
-                    newWidth = clientWidth - snapshotX;
-                    newHeight = newWidth * aspectRatio;
-                }
-                if (snapshotY + newHeight > clientHeight) {
-                    newHeight = clientHeight - snapshotY;
-                    newWidth = newHeight / aspectRatio;
-                }
-
-                itemRef.current!.style.width = `${newWidth}px`;
-                itemRef.current!.style.height = `${newHeight}px`;
+                itemRef.current.style.width = `${newWidth}px`;
+                itemRef.current.style.height = `${newHeight}px`;
             }
         };
 
-        const handleEnd = (upEvent: MouseEvent | TouchEvent) => {
-            if (!itemRef.current || !interactionStartRef.current) return;
+        const handleEnd = (e: MouseEvent | TouchEvent) => {
+            if (!itemRef.current || !containerRef.current || !interactionStartRef.current) {
+                setInteractionType(null);
+                return;
+            }
 
-            const interactionStart = interactionStartRef.current;
-            interactionStartRef.current = null;
-
-            window.removeEventListener('mousemove', handleMove);
-            window.removeEventListener('mouseup', handleEnd);
-            window.removeEventListener('touchmove', handleMove);
-            window.removeEventListener('touchend', handleEnd);
-
-            const isEndTouchEvent = 'changedTouches' in upEvent;
-            const endX = isEndTouchEvent ? upEvent.changedTouches[0].clientX : upEvent.clientX;
-            const endY = isEndTouchEvent ? upEvent.changedTouches[0].clientY : upEvent.clientY;
-
-            const dx = endX - interactionStart.clientX;
-            const dy = endY - interactionStart.clientY;
-
-            const hasDragged = Math.sqrt(dx * dx + dy * dy) > 5;
-
-            // Reset the temporary styles
-            itemRef.current.style.transform = '';
-            itemRef.current.style.width = ``;
-            itemRef.current.style.height = ``;
+            const { hasDragged, startX, startY, snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStartRef.current;
             
+            itemRef.current.style.transform = '';
+            itemRef.current.style.width = '';
+            itemRef.current.style.height = '';
+
             if (hasDragged) {
-                if (interactionStart.type === 'drag') {
-                    const { clientWidth, clientHeight } = containerRef.current!;
-                    const { snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStart;
+                const isTouchEvent = 'changedTouches' in e;
+                const point = isTouchEvent ? e.changedTouches[0] : e;
+                const dx = point.clientX - startX;
+                const dy = point.clientY - startY;
+
+                if (interactionType === 'drag') {
+                    const { clientWidth, clientHeight } = containerRef.current;
                     let newX = snapshotX + dx;
                     let newY = snapshotY + dy;
                     newX = Math.max(0, Math.min(newX, clientWidth - snapshotWidth));
                     newY = Math.max(0, Math.min(newY, clientHeight - snapshotHeight));
-
                     onUpdate(snapshot.id, { x: newX, y: newY });
-                } else { // resize
-                    const { snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStart;
-                    const { clientWidth, clientHeight } = containerRef.current!;
+                } else if (interactionType === 'resize') {
+                    const { clientWidth, clientHeight } = containerRef.current;
                     const aspectRatio = snapshotHeight / snapshotWidth;
-
+                    
                     let newWidth = Math.max(50, snapshotWidth + dx);
-                    let newHeight = newWidth * aspectRatio;
-
-                    if (newWidth > clientWidth) {
-                        newWidth = clientWidth * 0.9;
-                        newHeight = newWidth * aspectRatio;
-                    }
-
                     if (snapshotX + newWidth > clientWidth) {
                         newWidth = clientWidth - snapshotX;
-                        newHeight = newWidth * aspectRatio;
                     }
+
+                    let newHeight = newWidth * aspectRatio;
                     if (snapshotY + newHeight > clientHeight) {
                         newHeight = clientHeight - snapshotY;
                         newWidth = newHeight / aspectRatio;
                     }
                     
-                    onUpdate(snapshot.id, {
-                        width: newWidth,
-                        height: newHeight,
-                    });
+                    onUpdate(snapshot.id, { width: newWidth, height: newHeight });
                 }
             } else {
                 onSelect();
                 onClick();
             }
+            
+            setInteractionType(null);
+            interactionStartRef.current = null;
         };
+        
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleEnd);
+        window.addEventListener('touchmove', handleMove, { passive: false });
+        window.addEventListener('touchend', handleEnd);
 
-        if (isTouchEvent) {
-            window.addEventListener('touchmove', handleMove, { passive: false });
-            window.addEventListener('touchend', handleEnd, { passive: false });
-        } else {
-            window.addEventListener('mousemove', handleMove);
-            window.addEventListener('mouseup', handleEnd);
-        }
-    };
+        return () => {
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleEnd);
+            window.removeEventListener('touchmove', handleMove);
+            window.removeEventListener('touchend', handleEnd);
+        };
+    }, [interactionType, snapshot.id, containerRef, onClick, onDelete, onSelect, onUpdate]);
 
     return (
         <div
