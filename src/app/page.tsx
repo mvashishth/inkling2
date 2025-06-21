@@ -70,6 +70,7 @@ export default function Home() {
   const pdfCanvasRef = React.useRef<DrawingCanvasRef>(null);
   const pinupCanvasRef = React.useRef<DrawingCanvasRef>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const pinupContainerRef = React.useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const [activeCanvas, setActiveCanvas] = React.useState<'pdf' | 'pinup'>('pdf');
@@ -556,6 +557,7 @@ export default function Home() {
           <div className="w-2/5 flex flex-col">
               <header className="p-2 text-center font-semibold bg-card border-b">Pinup Board</header>
               <div 
+                ref={pinupContainerRef}
                 className="flex-1 relative bg-background overflow-auto"
                 onMouseDownCapture={(e) => {
                   setActiveCanvas('pinup');
@@ -586,6 +588,7 @@ export default function Home() {
                     onClick={() => handleSnapshotClick(snapshot)}
                     isSelected={selectedSnapshot === snapshot.id}
                     onSelect={() => setSelectedSnapshot(snapshot.id)}
+                    containerRef={pinupContainerRef}
                   />
                 ))}
               </div>
