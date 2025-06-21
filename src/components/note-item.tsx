@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { X, Expand } from 'lucide-react';
+import { X, Expand, Move } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Textarea } from './ui/textarea';
 
@@ -51,7 +51,7 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
         let newX = x;
         let newY = y;
         let newWidth = Math.max(100, width);
-        let newHeight = Math.max(80, height);
+        let newHeight = Math.max(100, height);
 
         if (newWidth > containerWidth) {
           newWidth = containerWidth;
@@ -72,14 +72,6 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
     };
 
     const handleInteractionStart = useCallback((e: React.MouseEvent | React.TouchEvent, type: 'drag' | 'resize') => {
-        const target = e.target as HTMLElement;
-        if (target.closest('textarea') || target.closest('[aria-label="Delete note"]')) {
-          return;
-        }
-        if (type === 'drag' && target.closest('[aria-label="Resize note"]')) {
-            return;
-        }
-
         e.stopPropagation();
         if ('button' in e && e.button !== 0) return;
 
@@ -110,7 +102,7 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
         if (hasMovedRef.current) return;
         
         const target = e.target as HTMLElement;
-        if(target.closest('[aria-label="Resize note"]') || target.closest('[aria-label="Delete note"]') || target.closest('textarea')) {
+        if(target.closest('[data-drag-handle="true"]') || target.closest('[aria-label="Resize note"]') || target.closest('[aria-label="Delete note"]') || target.closest('textarea')) {
             return;
         }
         onSelect();
@@ -146,7 +138,7 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
                 } else if (interactionRef.current.type === 'resize') {
                     const { noteX, noteY, noteWidth, noteHeight } = interactionRef.current;
                     const newWidth = Math.max(100, noteWidth + dx);
-                    const newHeight = Math.max(80, noteHeight + dy);
+                    const newHeight = Math.max(100, noteHeight + dy);
 
                     itemRef.current.style.transform = `translate(${noteX}px, ${noteY}px)`;
                     itemRef.current.style.width = `${newWidth}px`;
@@ -186,7 +178,7 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
                     newY += dy;
                 } else if (interaction.type === 'resize') {
                     newWidth = Math.max(100, interaction.noteWidth + dx);
-                    newHeight = Math.max(80, interaction.noteHeight + dy);
+                    newHeight = Math.max(100, interaction.noteHeight + dy);
                 }
                 
                 newX = Math.max(0, Math.min(newX, containerWidth - newWidth));
@@ -241,24 +233,32 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, is
                 touchAction: 'none'
             }}
             className={cn(
-                "shadow-lg bg-yellow-200/80 backdrop-blur-sm p-2 rounded-md flex flex-col",
+                "shadow-lg bg-yellow-200/80 backdrop-blur-sm rounded-md flex flex-col",
                 isSelected ? "z-10" : "z-0",
             )}
-            onMouseDown={(e) => handleInteractionStart(e, 'drag')}
-            onTouchStart={(e) => handleInteractionStart(e, 'drag')}
             onClick={handleBodyClick}
             data-ai-hint="sticky note"
             data-note-id={note.id}
         >
+            <div
+                data-drag-handle="true"
+                onMouseDown={(e) => handleInteractionStart(e, 'drag')}
+                onTouchStart={(e) => handleInteractionStart(e, 'drag')}
+                className="h-6 bg-yellow-300/90 rounded-t-md flex items-center justify-center text-gray-600/70 cursor-grab active:cursor-grabbing"
+            >
+                <Move size={14} />
+            </div>
              <div className={cn(
-                "w-full h-full border-2 rounded-md flex flex-col",
-                isSelected ? "border-blue-500 ring-2 ring-blue-500" : "border-transparent",
+                "w-full h-full flex-grow border-2 rounded-b-md flex flex-col border-t-0 relative",
+                isSelected ? "border-blue-500 ring-2 ring-blue-500 ring-inset" : "border-transparent",
             )}>
                 <Textarea
                     value={note.content}
                     onChange={handleTextChange}
                     placeholder="Type your note..."
                     className="flex-grow w-full h-full bg-transparent border-0 focus-visible:ring-0 resize-none p-1 text-sm"
+                    onMouseDown={(e) => {onSelect(); e.stopPropagation();}}
+                    onTouchStart={(e) => {onSelect(); e.stopPropagation();}}
                 />
             </div>
             {isSelected && (
