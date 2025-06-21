@@ -12,9 +12,11 @@ import {
   Highlighter,
   FileUp,
   Save,
+  Camera,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DrawingCanvas, type DrawingCanvasRef, type AnnotationData } from '@/components/drawing-canvas';
+import { SnapshotItem, type Snapshot } from '@/components/snapshot-item';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
@@ -35,9 +37,8 @@ if (typeof window !== 'undefined') {
   ).toString();
 }
 
-type Tool = 'draw' | 'erase' | 'highlight';
+type Tool = 'draw' | 'erase' | 'highlight' | 'snapshot';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
-const DEFAULT_HIGHLIGHTER_COLOR = '#22C55E';
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
     const CHUNK_SIZE = 0x8000;
@@ -54,7 +55,7 @@ export default function Home() {
   const [tool, setTool] = React.useState<Tool | null>(null);
   const [penSize, setPenSize] = React.useState(5);
   const [penColor, setPenColor] = React.useState(COLORS[0]);
-  const [highlighterColor, setHighlighterColor] = React.useState(DEFAULT_HIGHLIGHTER_COLOR);
+  const [highlighterColor, setHighlighterColor] = React.useState(COLORS[3]);
   const [eraserSize, setEraserSize] = React.useState(20);
   const [highlighterSize, setHighlighterSize] = React.useState(20);
   
@@ -78,12 +79,18 @@ export default function Home() {
   const [pinupCanUndo, setPinupCanUndo] = React.useState(false);
   const [pinupCanRedo, setPinupCanRedo] = React.useState(false);
 
+  const [snapshots, setSnapshots] = React.useState<Snapshot[]>([]);
+  const [selectedSnapshot, setSelectedSnapshot] = React.useState<string | null>(null);
+
   const canUndo = activeCanvas === 'pdf' ? pdfCanUndo : pinupCanUndo;
   const canRedo = activeCanvas === 'pdf' ? pdfCanRedo : pinupCanRedo;
   const activeCanvasRef = activeCanvas === 'pdf' ? pdfCanvasRef : pinupCanvasRef;
 
   const handleToolClick = (selectedTool: Tool) => {
     setTool((currentTool) => (currentTool === selectedTool ? null : selectedTool));
+    if (selectedTool !== 'snapshot') {
+      setActiveCanvas('pdf');
+    }
   };
 
   const handleExport = () => {
@@ -126,6 +133,7 @@ export default function Home() {
         originalPdfFileName: originalPdfFileName,
         pdfDataBase64: pdfDataBase64,
         annotations: annotationData,
+        snapshots: snapshots,
         fileType: 'inkling-project'
     };
     
@@ -169,10 +177,12 @@ export default function Home() {
     setIsPdfLoading(true);
     setPdfLoadProgress(0);
     setPageImages([]);
+    setSnapshots([]);
     pdfCanvasRef.current?.clear();
+    pinupCanvasRef.current?.clear();
 
     try {
-      const loadingTask = pdfjsLib.getDocument(arrayBuffer);
+      const loadingTask = pdfjsLib.getDocument(arrayBuffer.slice(0));
       loadingTask.onProgress = (progressData) => {};
       
       const pdf = await loadingTask.promise;
@@ -231,6 +241,7 @@ export default function Home() {
                   setOriginalPdfFile(arrayBuffer.slice(0));
                   setOriginalPdfFileName(projectData.originalPdfFileName || file.name.replace(/\.json$/i, ".pdf"));
                   setAnnotationDataToLoad(projectData.annotations);
+                  setSnapshots(projectData.snapshots || []);
                   await loadPdf(arrayBuffer.slice(0));
               } else {
                   throw new Error("Invalid project file format.");
@@ -250,6 +261,7 @@ export default function Home() {
         setOriginalPdfFile(arrayBuffer.slice(0));
         setOriginalPdfFileName(file.name);
         setAnnotationDataToLoad(null);
+        setSnapshots([]);
         await loadPdf(arrayBuffer.slice(0));
     } else {
         toast({
@@ -269,8 +281,44 @@ export default function Home() {
         setOriginalPdfFile(null);
         setOriginalPdfFileName(null);
         setAnnotationDataToLoad(null);
+        setSnapshots([]);
     } else {
         pinupCanvasRef.current?.clear();
+        setSnapshots([]);
+    }
+  };
+
+  const handleSnapshot = (
+    imageDataUrl: string,
+    sourcePage: number,
+    sourceRect: { x: number; y: number; width: number; height: number }
+  ) => {
+    const newSnapshot: Snapshot = {
+      id: `snapshot_${Date.now()}`,
+      imageDataUrl,
+      x: 50,
+      y: 50,
+      width: sourceRect.width,
+      height: sourceRect.height,
+      sourcePage,
+      sourceRect,
+    };
+    setSnapshots((prev) => [...prev, newSnapshot]);
+    setTool(null);
+  };
+
+  const updateSnapshot = (id: string, newProps: Partial<Omit<Snapshot, 'id'>>) => {
+    setSnapshots(snapshots => snapshots.map(s => s.id === id ? {...s, ...newProps} : s));
+  };
+
+  const deleteSnapshot = (id: string) => {
+    setSnapshots(snapshots => snapshots.filter(s => s.id !== id));
+  };
+
+  const handleSnapshotClick = (snapshot: Snapshot) => {
+    const pageElement = pdfCanvasRef.current?.getPageElement(snapshot.sourcePage);
+    if (pageElement) {
+      pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
 
@@ -323,6 +371,20 @@ export default function Home() {
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="bottom"><p>Highlight</p></TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={tool === 'snapshot' ? 'secondary' : 'ghost'}
+                        size="icon"
+                        onClick={() => handleToolClick('snapshot')}
+                        className="h-10 w-10 rounded-lg"
+                        disabled={pageImages.length === 0}
+                      >
+                        <Camera className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom"><p>Snapshot</p></TooltipContent>
                   </Tooltip>
                 </div>
             </div>
@@ -386,7 +448,7 @@ export default function Home() {
             </div>
         </aside>
 
-        {tool && (
+        {tool && tool !== 'snapshot' && (
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-x-8 px-4 py-2 border-b bg-card shadow-sm z-10">
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground whitespace-nowrap">
@@ -476,6 +538,7 @@ export default function Home() {
                 onHistoryChange={handlePdfHistoryChange}
                 initialAnnotations={annotationDataToLoad}
                 toast={toast}
+                onSnapshot={handleSnapshot}
               />
             </div>
           </div>
@@ -484,7 +547,12 @@ export default function Home() {
               <header className="p-2 text-center font-semibold bg-card border-b">Pinup Board</header>
               <div 
                 className="flex-1 relative bg-background overflow-auto"
-                onMouseDownCapture={() => setActiveCanvas('pinup')}
+                onMouseDownCapture={(e) => {
+                  setActiveCanvas('pinup');
+                  if(e.target === e.currentTarget) {
+                    setSelectedSnapshot(null);
+                  }
+                }}
               >
                 <DrawingCanvas
                     ref={pinupCanvasRef}
@@ -499,6 +567,17 @@ export default function Home() {
                     initialAnnotations={null}
                     toast={toast}
                 />
+                {snapshots.map(snapshot => (
+                  <SnapshotItem 
+                    key={snapshot.id}
+                    snapshot={snapshot}
+                    onUpdate={updateSnapshot}
+                    onDelete={deleteSnapshot}
+                    onClick={() => handleSnapshotClick(snapshot)}
+                    isSelected={selectedSnapshot === snapshot.id}
+                    onSelect={() => setSelectedSnapshot(snapshot.id)}
+                  />
+                ))}
               </div>
           </div>
         </main>

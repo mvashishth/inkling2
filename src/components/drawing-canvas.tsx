@@ -33,11 +33,12 @@ export interface DrawingCanvasRef {
   redo: () => void;
   initializePages: (numPages: number) => void;
   getAnnotationData: () => AnnotationData | undefined;
+  getPageElement: (pageIndex: number) => HTMLDivElement | null;
 }
 
 interface DrawingCanvasProps {
   pages: string[];
-  tool: 'draw' | 'erase' | 'highlight' | null;
+  tool: 'draw' | 'erase' | 'highlight' | 'snapshot' | null;
   penColor: string;
   penSize: number;
   eraserSize: number;
@@ -46,10 +47,11 @@ interface DrawingCanvasProps {
   onHistoryChange: (canUndo: boolean, canRedo: boolean) => void;
   initialAnnotations: AnnotationData | null;
   toast: (options: { title: string; description: string; variant?: 'default' | 'destructive' }) => void;
+  onSnapshot?: (imageDataUrl: string, pageIndex: number, rect: { x: number; y: number; width: number; height: number }) => void;
 }
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange, initialAnnotations, toast }, ref) => {
+  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange, initialAnnotations, toast, onSnapshot }, ref) => {
     const isDrawingRef = useRef(false);
     const hasMovedRef = useRef(false);
 
@@ -64,6 +66,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     const preStrokeImageDataRef = useRef<ImageData | null>(null);
     const currentPathRef = useRef<Path2D | null>(null);
     const lastPointRef = useRef<Point | null>(null);
+
+    const [selection, setSelection] = useState<{ pageIndex: number; startX: number; startY: number; endX: number; endY: number} | null>(null);
+
 
     useEffect(() => {
         drawingCanvasRefs.current = drawingCanvasRefs.current.slice(0, pages.length || 1);
@@ -149,8 +154,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             pageHistoryRef.current.clear();
             pageHistoryIndexRef.current.clear();
         }
-
-        // The Page component's useEffect will handle calling restoreState once the canvas is sized.
       }
     }, [initialAnnotations, pages.length, restoreState, toast]);
 
@@ -166,18 +169,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     };
 
     const startDrawing = (e: React.MouseEvent | React.TouchEvent, pageIndex: number) => {
-      const context = contextRefs.current[pageIndex];
-      if (!context || !tool || ('button' in e && e.button !== 0)) return;
-      
-      lastActivePageRef.current = pageIndex;
-      updateHistoryButtons(pageIndex);
-      
+      if (!tool || ('button' in e && e.button !== 0)) return;
+      e.preventDefault();
       isDrawingRef.current = true;
       hasMovedRef.current = false;
-      
+      lastActivePageRef.current = pageIndex;
+      updateHistoryButtons(pageIndex);
       const point = getPoint(e, pageIndex);
+      
+      if (tool === 'snapshot') {
+        setSelection({ pageIndex, startX: point.x, startY: point.y, endX: point.x, endY: point.y });
+        return;
+      }
+      
+      const context = contextRefs.current[pageIndex];
+      if (!context) return;
       lastPointRef.current = point;
-
       context.lineCap = 'round';
       context.lineJoin = 'round';
       
@@ -200,61 +207,100 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         preStrokeImageDataRef.current = context.getImageData(0, 0, context.canvas.width, context.canvas.height);
         currentPathRef.current = new Path2D();
         currentPathRef.current.moveTo(point.x, point.y);
+      } else {
+        context.beginPath();
+        context.moveTo(point.x, point.y);
       }
     };
 
     const draw = (e: React.MouseEvent | React.TouchEvent) => {
-      if ('buttons' in e && e.buttons !== 1) {
-        if (isDrawingRef.current) {
-          stopDrawing();
+      if (!isDrawingRef.current) return;
+      e.preventDefault();
+
+      const pageIndex = lastActivePageRef.current;
+      const point = getPoint(e, pageIndex);
+
+      if(tool === 'snapshot' && selection){
+        setSelection(prev => prev ? { ...prev, endX: point.x, endY: point.y } : null);
+        return;
+      }
+      
+      const context = contextRefs.current[pageIndex];
+      if (!context || !lastPointRef.current) return;
+
+      if (!hasMovedRef.current) {
+        hasMovedRef.current = true;
+      }
+      
+      if (tool === 'highlight' && preStrokeImageDataRef.current && currentPathRef.current) {
+        context.putImageData(preStrokeImageDataRef.current, 0, 0);
+        currentPathRef.current.lineTo(point.x, point.y);
+        context.stroke(currentPathRef.current);
+      } else {
+        context.lineTo(point.x, point.y);
+        context.stroke();
+      }
+      
+      lastPointRef.current = point;
+    };
+
+    const stopDrawing = () => {
+      if (!isDrawingRef.current) return;
+
+      if(tool === 'snapshot' && selection) {
+        const { pageIndex, startX, startY, endX, endY } = selection;
+        const x = Math.min(startX, endX);
+        const y = Math.min(startY, endY);
+        const width = Math.abs(endX - startX);
+        const height = Math.abs(endY - startY);
+
+        if (width > 5 && height > 5 && onSnapshot) {
+          const drawingCanvas = drawingCanvasRefs.current[pageIndex];
+          const pageImageElement = pageContainerRef.current?.querySelectorAll('.page-image')[pageIndex] as HTMLImageElement;
+          
+          if (drawingCanvas && pageImageElement) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const tempCtx = tempCanvas.getContext('2d');
+            if (tempCtx) {
+              const scaleX = pageImageElement.naturalWidth / pageImageElement.width;
+              const scaleY = pageImageElement.naturalHeight / pageImageElement.height;
+              
+              tempCtx.drawImage(
+                pageImageElement,
+                x * scaleX, y * scaleY, width * scaleX, height * scaleY,
+                0, 0, width, height
+              );
+              
+              tempCtx.drawImage(
+                drawingCanvas,
+                x, y, width, height,
+                0, 0, width, height
+              );
+              
+              const dataUrl = tempCanvas.toDataURL('image/png');
+              onSnapshot(dataUrl, pageIndex, { x, y, width, height });
+            }
+          }
         }
+        setSelection(null);
+        isDrawingRef.current = false;
         return;
       }
       
       const pageIndex = lastActivePageRef.current;
       const context = contextRefs.current[pageIndex];
-      if (!isDrawingRef.current || !context || !lastPointRef.current) return;
-      e.preventDefault();
-
-      if (hasMovedRef.current === false) {
-        hasMovedRef.current = true;
-        if(tool !== 'highlight') {
-          context.beginPath();
-          context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
-        }
-      }
-
-      const currentPoint = getPoint(e, pageIndex);
-
-      if (tool === 'highlight' && preStrokeImageDataRef.current && currentPathRef.current) {
-        context.putImageData(preStrokeImageDataRef.current, 0, 0);
-        currentPathRef.current.lineTo(currentPoint.x, currentPoint.y);
-        context.stroke(currentPathRef.current);
-      } else {
-        context.lineTo(currentPoint.x, currentPoint.y);
-        context.stroke();
-      }
+      if (!context) return;
       
-      lastPointRef.current = currentPoint;
-    };
-
-    const stopDrawing = () => {
-      const pageIndex = lastActivePageRef.current;
-      const context = contextRefs.current[pageIndex];
-      if (!isDrawingRef.current || !context) return;
-      
-      if (hasMovedRef.current === false && lastPointRef.current) {
+      if (!hasMovedRef.current && lastPointRef.current) {
         const point = lastPointRef.current;
         if (tool === 'highlight' && preStrokeImageDataRef.current) {
           context.putImageData(preStrokeImageDataRef.current, 0, 0);
         }
 
         const size = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
-        if (tool === 'highlight') {
-            context.fillStyle = highlighterColor;
-        } else {
-            context.fillStyle = penColor;
-        }
+        context.fillStyle = tool === 'highlight' ? highlighterColor : penColor;
         context.beginPath();
         context.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
         context.fill();
@@ -285,7 +331,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         const drawingCanvas = drawingCanvasRefs.current[pageIndex];
         if (!drawingCanvas) return;
         
-        const pageImage = pageContainerRef.current?.querySelectorAll('img')[pageIndex];
+        const pageImage = pageContainerRef.current?.querySelectorAll('.page-image')[pageIndex] as HTMLImageElement;
         
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = drawingCanvas.width;
@@ -361,12 +407,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
         const serializedHistory: [number, SerializableImageData[]][] = [];
         for (const [pageIndex, history] of pageHistoryRef.current.entries()) {
-            const pageHistory = history.map(imageData => ({
-                width: imageData.width,
-                height: imageData.height,
-                data: uint8ClampedArrayToBase64(imageData.data),
-            }));
-            serializedHistory.push([pageIndex, pageHistory]);
+            if (history.length > 0) {
+              const pageHistory = history.map(imageData => ({
+                  width: imageData.width,
+                  height: imageData.height,
+                  data: uint8ClampedArrayToBase64(imageData.data),
+              }));
+              serializedHistory.push([pageIndex, pageHistory]);
+            }
         }
 
         const serializedHistoryIndex = Array.from(pageHistoryIndexRef.current.entries());
@@ -376,9 +424,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             historyIndex: serializedHistoryIndex,
         };
       },
+      getPageElement: (pageIndex: number) => {
+        const pageWrapper = pageContainerRef.current?.querySelectorAll('.page-wrapper')[pageIndex];
+        return pageWrapper as HTMLDivElement | null;
+      },
     }));
 
-    const Page = ({ pageDataUrl, index }: { pageDataUrl: string, index: number }) => {
+    const Page = ({ pageDataUrl, index, currentSelection }: { pageDataUrl: string, index: number, currentSelection: typeof selection }) => {
         const imgRef = useRef<HTMLImageElement>(null);
         
         useEffect(() => {
@@ -400,11 +452,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                   drawingCanvas.width = width;
                   drawingCanvas.height = height;
                   
-                  // Restore drawing if it exists
                   const history = pageHistoryRef.current.get(index) ?? [];
                   const historyIdx = pageHistoryIndexRef.current.get(index) ?? -1;
 
-                  if (history.length > 0 && history[historyIdx]) {
+                  if (history.length > 0 && historyIdx > -1 && history[historyIdx]) {
                     restoreState(index, historyIdx);
                   } else {
                     saveState(index);
@@ -427,21 +478,28 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         }, [index, restoreState, saveState]);
 
         return (
-            <div className="relative shadow-lg my-4 mx-auto w-fit">
-                <img ref={imgRef} src={pageDataUrl} alt={`Page ${index + 1}`} className="block pointer-events-none w-full h-auto max-w-[calc(100vw-2rem)]" data-ai-hint="pdf page" />
+            <div className="relative shadow-lg my-4 mx-auto w-fit page-wrapper">
+                <img ref={imgRef} src={pageDataUrl} alt={`Page ${index + 1}`} className="block pointer-events-none w-full h-auto max-w-[calc(100vw-2rem)] page-image" data-ai-hint="pdf page" />
                 <canvas
                     ref={(el) => (drawingCanvasRefs.current[index] = el)}
                     onMouseDown={(e) => startDrawing(e, index)}
-                    onMouseMove={draw}
-                    onMouseLeave={stopDrawing}
-                    onTouchStart={(e) => startDrawing(e, index)}
-                    onTouchMove={draw}
-                    onTouchEnd={stopDrawing}
                     className={cn(
                         "absolute inset-0",
-                        !tool && 'pointer-events-none'
+                        !tool && 'pointer-events-none',
+                        tool === 'snapshot' && 'cursor-crosshair'
                     )}
                 />
+                {currentSelection && (
+                  <div 
+                      className="absolute border-2 border-dashed border-blue-500 bg-blue-500/20 pointer-events-none"
+                      style={{
+                          left: Math.min(currentSelection.startX, currentSelection.endX),
+                          top: Math.min(currentSelection.startY, currentSelection.endY),
+                          width: Math.abs(currentSelection.endX - currentSelection.startX),
+                          height: Math.abs(currentSelection.endY - currentSelection.startY),
+                      }}
+                  />
+                )}
             </div>
         )
     };
@@ -499,12 +557,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       <div 
         ref={pageContainerRef}
         className="w-full h-full overflow-y-auto bg-muted/20 p-4"
+        onMouseMove={draw}
         onMouseUp={stopDrawing}
+        onMouseLeave={stopDrawing}
+        onTouchMove={draw}
         onTouchEnd={stopDrawing}
       >
         <div className="max-w-5xl mx-auto">
             {pages.map((pageDataUrl, index) => (
-                <Page key={index} pageDataUrl={pageDataUrl} index={index} />
+                <Page key={index} pageDataUrl={pageDataUrl} index={index} currentSelection={selection?.pageIndex === index ? selection : null} />
             ))}
         </div>
       </div>
