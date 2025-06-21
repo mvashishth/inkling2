@@ -113,7 +113,9 @@ const Page = React.memo(({
               if (history.length > 0 && historyIdx > -1 && history[historyIdx]) {
                 restoreState(index, historyIdx);
               } else if (!isProjectLoading) {
-                saveState(index);
+                if (!pageHistoryRef.current.has(index)) {
+                  saveState(index);
+                }
               }
           }
         }
@@ -633,11 +635,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                 if (history.length > 0 && historyIdx > -1 && history[historyIdx]) {
                   restoreState(0, historyIdx);
                 } else if (!isProjectLoading) {
-                  pageHistoryRef.current.clear();
-                  pageHistoryIndexRef.current.clear();
-                  pageHistoryRef.current.set(0, []);
-                  pageHistoryIndexRef.current.set(0, -1);
-                  saveState(0);
+                  if (!pageHistoryRef.current.has(0)) {
+                    pageHistoryRef.current.set(0, []);
+                    pageHistoryIndexRef.current.set(0, -1);
+                    saveState(0);
+                  }
                 }
                 updateHistoryButtons(0);
             }
