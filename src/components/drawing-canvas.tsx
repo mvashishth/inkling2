@@ -37,6 +37,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
   ({ tool, penColor, penSize, eraserSize, highlighterSize, onHistoryChange }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const contextRef = useRef<CanvasRenderingContext2D | null>(null);
+    const backgroundCanvasRef = useRef<HTMLCanvasElement>(null);
+    const backgroundContextRef = useRef<CanvasRenderingContext2D | null>(null);
+    const backgroundImageRef = useRef<HTMLImageElement | null>(null);
 
     const [isDrawing, setIsDrawing] = useState(false);
     const lastPointRef = useRef<Point | null>(null);
@@ -69,11 +72,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     // --- Setup and Resize ---
     useEffect(() => {
       const canvas = canvasRef.current;
-      if (!canvas) return;
+      const backgroundCanvas = backgroundCanvasRef.current;
+      if (!canvas || !backgroundCanvas) return;
       
       const context = canvas.getContext('2d', { willReadFrequently: true });
-      if (!context) return;
+      const backgroundContext = backgroundCanvas.getContext('2d', { willReadFrequently: true });
+      if (!context || !backgroundContext) return;
       contextRef.current = context;
+      backgroundContextRef.current = backgroundContext;
 
       const resizeCanvas = () => {
         const parent = canvas.parentElement;
@@ -83,21 +89,45 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
           
           const lastState = historyRef.current[historyIndexRef.current];
 
+          // Resize both canvases
           canvas.width = width * dpr;
           canvas.height = height * dpr;
           canvas.style.width = `${width}px`;
           canvas.style.height = `${height}px`;
 
+          backgroundCanvas.width = width * dpr;
+          backgroundCanvas.height = height * dpr;
+          backgroundCanvas.style.width = `${width}px`;
+          backgroundCanvas.style.height = `${height}px`;
+
+          // Scale contexts
           context.scale(dpr, dpr);
           context.lineCap = 'round';
           context.lineJoin = 'round';
           
+          backgroundContext.scale(dpr, dpr);
+
+          // Redraw background
+          if (backgroundImageRef.current) {
+            const img = backgroundImageRef.current;
+            const scale = Math.min(width / img.width, height / img.height);
+            const scaledWidth = img.width * scale;
+            const scaledHeight = img.height * scale;
+            const x = (width - scaledWidth) / 2;
+            const y = (height - scaledHeight) / 2;
+            backgroundContext.fillStyle = 'white';
+            backgroundContext.fillRect(0, 0, width, height);
+            backgroundContext.drawImage(img, x, y, scaledWidth, scaledHeight);
+          } else {
+             backgroundContext.fillStyle = 'white';
+             backgroundContext.fillRect(0, 0, width, height);
+          }
+          
+          // Restore drawing
           if(lastState) {
             context.putImageData(lastState, 0, 0);
           } else {
-            // Initial clear state
-            context.fillStyle = 'white';
-            context.fillRect(0,0, canvas.width, canvas.height);
+            context.clearRect(0,0, canvas.width, canvas.height);
             saveState();
           }
         }
@@ -221,15 +251,43 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     };
     
     useImperativeHandle(ref, () => ({
-      exportAsDataURL: () => canvasRef.current?.toDataURL('image/png'),
+      exportAsDataURL: () => {
+        const canvas = canvasRef.current;
+        const backgroundCanvas = backgroundCanvasRef.current;
+        if (!canvas || !backgroundCanvas) return;
+        
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        if (!tempCtx) return;
+        
+        // Draw background first, then drawing on top
+        tempCtx.drawImage(backgroundCanvas, 0, 0);
+        tempCtx.drawImage(canvas, 0, 0);
+        
+        return tempCanvas.toDataURL('image/png');
+      },
       clear: () => {
         const canvas = canvasRef.current;
         const context = contextRef.current;
+        const backgroundCanvas = backgroundCanvasRef.current;
+        const backgroundContext = backgroundContextRef.current;
+        
+        backgroundImageRef.current = null;
+
         if (canvas && context) {
-          const dpr = window.devicePixelRatio || 1;
-          context.fillStyle = 'white';
-          context.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          historyRef.current = [];
+          historyIndexRef.current = -1;
           saveState();
+        }
+        if (backgroundCanvas && backgroundContext) {
+           const dpr = window.devicePixelRatio || 1;
+           const width = backgroundCanvas.width / dpr;
+           const height = backgroundCanvas.height / dpr;
+           backgroundContext.fillStyle = 'white';
+           backgroundContext.fillRect(0, 0, width, height);
         }
       },
       undo: () => {
@@ -249,28 +307,31 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       loadImage: (dataUrl) => {
          const canvas = canvasRef.current;
          const context = contextRef.current;
-         if(!canvas || !context) return;
+         const backgroundCanvas = backgroundCanvasRef.current;
+         const backgroundContext = backgroundContextRef.current;
+         if(!backgroundCanvas || !backgroundContext || !canvas || !context) return;
          
          const img = new Image();
          img.onload = () => {
+           backgroundImageRef.current = img;
            const dpr = window.devicePixelRatio || 1;
-           const canvasWidth = canvas.width / dpr;
-           const canvasHeight = canvas.height / dpr;
+           const canvasWidth = backgroundCanvas.width / dpr;
+           const canvasHeight = backgroundCanvas.height / dpr;
 
-           // Clear canvas with white background
-           context.fillStyle = 'white';
-           context.fillRect(0, 0, canvasWidth, canvasHeight);
+           backgroundContext.fillStyle = 'white';
+           backgroundContext.fillRect(0, 0, canvasWidth, canvasHeight);
            
-           // Calculate scale to fit image while preserving aspect ratio
            const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height);
            const scaledWidth = img.width * scale;
            const scaledHeight = img.height * scale;
            
-           // Center the image
            const x = (canvasWidth - scaledWidth) / 2;
            const y = (canvasHeight - scaledHeight) / 2;
-
-           context.drawImage(img, x, y, scaledWidth, scaledHeight);
+           backgroundContext.drawImage(img, x, y, scaledWidth, scaledHeight);
+           
+           context.clearRect(0, 0, canvas.width, canvas.height);
+           historyRef.current = [];
+           historyIndexRef.current = -1;
            saveState();
          }
          img.src = dataUrl;
@@ -278,18 +339,25 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     }));
 
     return (
-      <canvas
-        ref={canvasRef}
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
-        onTouchStart={startDrawing}
-        onTouchMove={draw}
-        onTouchEnd={stopDrawing}
-        className="touch-none bg-white"
-        data-ai-hint="drawing canvas"
-      />
+      <div className="relative w-full h-full bg-white">
+        <canvas
+          ref={backgroundCanvasRef}
+          className="absolute inset-0 pointer-events-none"
+          data-ai-hint="background pdf"
+        />
+        <canvas
+          ref={canvasRef}
+          onMouseDown={startDrawing}
+          onMouseMove={draw}
+          onMouseUp={stopDrawing}
+          onMouseLeave={stopDrawing}
+          onTouchStart={startDrawing}
+          onTouchMove={draw}
+          onTouchEnd={stopDrawing}
+          className="touch-none absolute inset-0"
+          data-ai-hint="drawing layer"
+        />
+      </div>
     );
   }
 );
