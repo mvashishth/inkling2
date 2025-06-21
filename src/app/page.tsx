@@ -302,13 +302,22 @@ export default function Home() {
     sourcePage: number,
     sourceRect: { x: number; y: number; width: number; height: number }
   ) => {
+    const pinupWidth = pinupContainerRef.current?.clientWidth;
+    let { width, height } = sourceRect;
+
+    if (pinupWidth && width > pinupWidth) {
+        const aspectRatio = height / width;
+        width = pinupWidth * 0.9;
+        height = width * aspectRatio;
+    }
+
     const newSnapshot: Snapshot = {
       id: `snapshot_${Date.now()}`,
       imageDataUrl,
       x: 50,
       y: 50,
-      width: sourceRect.width,
-      height: sourceRect.height,
+      width: width,
+      height: height,
       sourcePage,
       sourceRect,
     };

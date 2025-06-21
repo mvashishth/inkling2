@@ -28,21 +28,27 @@ interface SnapshotItemProps {
 
 export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, onDelete, onClick, isSelected, onSelect, containerRef }) => {
     const itemRef = useRef<HTMLDivElement>(null);
+    const interactionStartRef = useRef<{
+        type: 'drag' | 'resize';
+        clientX: number;
+        clientY: number;
+        snapshotX: number;
+        snapshotY: number;
+        snapshotWidth: number;
+        snapshotHeight: number;
+    } | null>(null);
 
     const handleInteractionStart = (e: React.MouseEvent | React.TouchEvent, type: 'drag' | 'resize') => {
-        if (!itemRef.current) return;
+        if (!itemRef.current || !containerRef.current) return;
         
+        e.preventDefault();
         e.stopPropagation();
 
         const isTouchEvent = 'touches' in e;
-        if (isTouchEvent && e.cancelable) {
-            e.preventDefault();
-        }
-
         const startX = isTouchEvent ? e.touches[0].clientX : e.clientX;
         const startY = isTouchEvent ? e.touches[0].clientY : e.clientY;
 
-        const interactionStart = {
+        interactionStartRef.current = {
             type: type,
             clientX: startX,
             clientY: startY,
@@ -56,43 +62,46 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             if ('preventDefault' in moveEvent && moveEvent.cancelable) {
                 moveEvent.preventDefault();
             }
-            if (!itemRef.current || !containerRef.current) return;
+            if (!itemRef.current || !containerRef.current || !interactionStartRef.current) return;
 
             const isMoveTouchEvent = 'touches' in moveEvent;
             const moveX = isMoveTouchEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
             const moveY = isMoveTouchEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
             
-            const dx = moveX - interactionStart.clientX;
-            const dy = moveY - interactionStart.clientY;
+            const dx = moveX - interactionStartRef.current.clientX;
+            const dy = moveY - interactionStartRef.current.clientY;
 
-            const container = containerRef.current;
-            const { clientWidth, clientHeight } = container;
-
-            if (interactionStart.type === 'drag') {
-                let newX = interactionStart.snapshotX + dx;
-                let newY = interactionStart.snapshotY + dy;
-
-                newX = Math.max(0, newX);
-                newX = Math.min(newX, clientWidth - interactionStart.snapshotWidth);
-
-                newY = Math.max(0, newY);
-                newY = Math.min(newY, clientHeight - interactionStart.snapshotHeight);
-
-                const constrainedDx = newX - interactionStart.snapshotX;
-                const constrainedDy = newY - interactionStart.snapshotY;
-
-                itemRef.current!.style.transform = `translate(${constrainedDx}px, ${constrainedDy}px)`;
-            } else { // resize
-                const { snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStart;
+            if (interactionStartRef.current.type === 'drag') {
+                const { clientWidth, clientHeight } = containerRef.current;
+                const { snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStartRef.current;
                 
-                let newWidth = Math.max(50, snapshotWidth + dx);
-                let newHeight = Math.max(50, snapshotHeight + dy);
+                let newX = snapshotX + dx;
+                let newY = snapshotY + dy;
 
+                newX = Math.max(0, Math.min(newX, clientWidth - snapshotWidth));
+                newY = Math.max(0, Math.min(newY, clientHeight - snapshotHeight));
+
+                itemRef.current!.style.transform = `translate(${newX - snapshotX}px, ${newY - snapshotY}px)`;
+            } else { // resize
+                const { snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStartRef.current;
+                const { clientWidth, clientHeight } = containerRef.current;
+                const aspectRatio = snapshotHeight / snapshotWidth;
+
+                let newWidth = Math.max(50, snapshotWidth + dx);
+                let newHeight = newWidth * aspectRatio;
+
+                if (newWidth > clientWidth) {
+                    newWidth = clientWidth * 0.9;
+                    newHeight = newWidth * aspectRatio;
+                }
+                
                 if (snapshotX + newWidth > clientWidth) {
                     newWidth = clientWidth - snapshotX;
+                    newHeight = newWidth * aspectRatio;
                 }
                 if (snapshotY + newHeight > clientHeight) {
                     newHeight = clientHeight - snapshotY;
+                    newWidth = newHeight / aspectRatio;
                 }
 
                 itemRef.current!.style.width = `${newWidth}px`;
@@ -101,15 +110,16 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
         };
 
         const handleEnd = (upEvent: MouseEvent | TouchEvent) => {
-            if (isTouchEvent) {
-                window.removeEventListener('touchmove', handleMove);
-                window.removeEventListener('touchend', handleEnd);
-            } else {
-                window.removeEventListener('mousemove', handleMove);
-                window.removeEventListener('mouseup', handleEnd);
-            }
-            if (!itemRef.current || !containerRef.current) return;
-            
+            if (!itemRef.current || !interactionStartRef.current) return;
+
+            const interactionStart = interactionStartRef.current;
+            interactionStartRef.current = null;
+
+            window.removeEventListener('mousemove', handleMove);
+            window.removeEventListener('mouseup', handleEnd);
+            window.removeEventListener('touchmove', handleMove);
+            window.removeEventListener('touchend', handleEnd);
+
             const isEndTouchEvent = 'changedTouches' in upEvent;
             const endX = isEndTouchEvent ? upEvent.changedTouches[0].clientX : upEvent.clientX;
             const endY = isEndTouchEvent ? upEvent.changedTouches[0].clientY : upEvent.clientY;
@@ -121,40 +131,42 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
 
             // Reset the temporary styles
             itemRef.current.style.transform = '';
-            itemRef.current.style.width = `${snapshot.width}px`;
-            itemRef.current.style.height = `${snapshot.height}px`;
-
+            itemRef.current.style.width = ``;
+            itemRef.current.style.height = ``;
+            
             if (hasDragged) {
-                const container = containerRef.current;
-                const { clientWidth, clientHeight } = container;
-
                 if (interactionStart.type === 'drag') {
-                    let newX = interactionStart.snapshotX + dx;
-                    let newY = interactionStart.snapshotY + dy;
+                    const { clientWidth, clientHeight } = containerRef.current!;
+                    const { snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStart;
+                    let newX = snapshotX + dx;
+                    let newY = snapshotY + dy;
+                    newX = Math.max(0, Math.min(newX, clientWidth - snapshotWidth));
+                    newY = Math.max(0, Math.min(newY, clientHeight - snapshotHeight));
 
-                    newX = Math.max(0, newX);
-                    newX = Math.min(newX, clientWidth - interactionStart.snapshotWidth);
-
-                    newY = Math.max(0, newY);
-                    newY = Math.min(newY, clientHeight - interactionStart.snapshotHeight);
-
-                    onUpdate(snapshot.id, {
-                        x: newX,
-                        y: newY,
-                    });
+                    onUpdate(snapshot.id, { x: newX, y: newY });
                 } else { // resize
                     const { snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStart;
-                    
+                    const { clientWidth, clientHeight } = containerRef.current!;
+                    const aspectRatio = snapshotHeight / snapshotWidth;
+
                     let newWidth = Math.max(50, snapshotWidth + dx);
-                    let newHeight = Math.max(50, snapshotHeight + dy);
+                    let newHeight = newWidth * aspectRatio;
+
+                    if (newWidth > clientWidth) {
+                        newWidth = clientWidth * 0.9;
+                        newHeight = newWidth * aspectRatio;
+                    }
 
                     if (snapshotX + newWidth > clientWidth) {
                         newWidth = clientWidth - snapshotX;
+                        newHeight = newWidth * aspectRatio;
                     }
                     if (snapshotY + newHeight > clientHeight) {
                         newHeight = clientHeight - snapshotY;
+                        newWidth = newHeight / aspectRatio;
                     }
-                     onUpdate(snapshot.id, {
+                    
+                    onUpdate(snapshot.id, {
                         width: newWidth,
                         height: newHeight,
                     });
