@@ -42,6 +42,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     const backgroundCanvasRef = useRef<HTMLCanvasElement>(null);
     const backgroundContextRef = useRef<CanvasRenderingContext2D | null>(null);
     const backgroundImageRef = useRef<HTMLImageElement | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const [isDrawing, setIsDrawing] = useState(false);
     const lastPointRef = useRef<Point | null>(null);
@@ -82,7 +83,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     useEffect(() => {
       const canvas = canvasRef.current;
       const backgroundCanvas = backgroundCanvasRef.current;
-      if (!canvas || !backgroundCanvas) return;
+      const container = containerRef.current;
+      if (!canvas || !backgroundCanvas || !container) return;
       
       const context = canvas.getContext('2d', { willReadFrequently: true });
       const backgroundContext = backgroundCanvas.getContext('2d', { willReadFrequently: true });
@@ -91,61 +93,51 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       backgroundContextRef.current = backgroundContext;
 
       const resizeCanvas = () => {
-        const parent = canvas.parentElement;
-        if (parent) {
-          const { width, height } = parent.getBoundingClientRect();
-          const dpr = window.devicePixelRatio || 1;
-          
-          const lastState = historyRef.current[historyIndexRef.current];
-
-          // Resize both canvases
-          canvas.width = width * dpr;
-          canvas.height = height * dpr;
-          canvas.style.width = `${width}px`;
-          canvas.style.height = `${height}px`;
-
-          backgroundCanvas.width = width * dpr;
-          backgroundCanvas.height = height * dpr;
-          backgroundCanvas.style.width = `${width}px`;
-          backgroundCanvas.style.height = `${height}px`;
-
-          // Scale contexts
-          context.scale(dpr, dpr);
-          context.lineCap = 'round';
-          context.lineJoin = 'round';
-          
-          backgroundContext.scale(dpr, dpr);
-
-          // Redraw background
-          if (backgroundImageRef.current) {
-            const img = backgroundImageRef.current;
-            const scale = Math.min(width / img.width, height / img.height);
-            const scaledWidth = img.width * scale;
-            const scaledHeight = img.height * scale;
-            const x = (width - scaledWidth) / 2;
-            const y = (height - scaledHeight) / 2;
-            backgroundContext.fillStyle = 'white';
-            backgroundContext.fillRect(0, 0, width, height);
-            backgroundContext.drawImage(img, x, y, scaledWidth, scaledHeight);
-          } else {
-             backgroundContext.fillStyle = 'white';
-             backgroundContext.fillRect(0, 0, width, height);
-          }
-          
-          // Restore drawing
-          if(lastState) {
-            context.putImageData(lastState, 0, 0);
-          } else {
-            context.clearRect(0,0, canvas.width, canvas.height);
-            saveState();
-          }
+        const { width, height } = container.getBoundingClientRect();
+        
+        if (Math.round(canvas.width / (window.devicePixelRatio || 1)) === Math.round(width) && Math.round(canvas.height / (window.devicePixelRatio || 1)) === Math.round(height)) {
+          return;
         }
+
+        const dpr = window.devicePixelRatio || 1;
+        
+        // Resize both canvases
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+
+        backgroundCanvas.width = width * dpr;
+        backgroundCanvas.height = height * dpr;
+        backgroundCanvas.style.width = `${width}px`;
+        backgroundCanvas.style.height = `${height}px`;
+
+        // Scale contexts
+        context.scale(dpr, dpr);
+        context.lineCap = 'round';
+        context.lineJoin = 'round';
+        
+        backgroundContext.scale(dpr, dpr);
+
+        // Redraw background
+        if (backgroundImageRef.current) {
+          const img = backgroundImageRef.current;
+          backgroundContext.fillStyle = 'white';
+          backgroundContext.fillRect(0, 0, width, height);
+          backgroundContext.drawImage(img, 0, 0, width, height);
+        } else {
+           backgroundContext.fillStyle = 'white';
+           backgroundContext.fillRect(0, 0, width, height);
+        }
+        
+        context.clearRect(0,0, canvas.width, canvas.height);
+        historyRef.current = [];
+        historyIndexRef.current = -1;
+        saveState();
       };
 
       const resizeObserver = new ResizeObserver(resizeCanvas);
-      if (canvas.parentElement) {
-        resizeObserver.observe(canvas.parentElement);
-      }
+      resizeObserver.observe(container);
       resizeCanvas();
 
       return () => resizeObserver.disconnect();
@@ -276,26 +268,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         return tempCanvas.toDataURL('image/png');
       },
       clear: () => {
-        const canvas = canvasRef.current;
-        const context = contextRef.current;
-        const backgroundCanvas = backgroundCanvasRef.current;
-        const backgroundContext = backgroundContextRef.current;
-        
+        const container = containerRef.current;
+        if (container) {
+          container.style.width = '100%';
+          container.style.height = '100%';
+        }
         backgroundImageRef.current = null;
-
-        if (canvas && context) {
-          context.clearRect(0, 0, canvas.width, canvas.height);
-          historyRef.current = [];
-          historyIndexRef.current = -1;
-          saveState();
-        }
-        if (backgroundCanvas && backgroundContext) {
-           const dpr = window.devicePixelRatio || 1;
-           const width = backgroundCanvas.width / dpr;
-           const height = backgroundCanvas.height / dpr;
-           backgroundContext.fillStyle = 'white';
-           backgroundContext.fillRect(0, 0, width, height);
-        }
       },
       undo: () => {
         if (historyIndexRef.current > 0) {
@@ -312,41 +290,25 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         }
       },
       loadImage: (dataUrl) => {
-         const canvas = canvasRef.current;
-         const context = contextRef.current;
-         const backgroundCanvas = backgroundCanvasRef.current;
-         const backgroundContext = backgroundContextRef.current;
-         if(!backgroundCanvas || !backgroundContext || !canvas || !context) return;
+         const container = containerRef.current;
+         if(!container) return;
          
          const img = new Image();
          img.onload = () => {
            backgroundImageRef.current = img;
-           const dpr = window.devicePixelRatio || 1;
-           const canvasWidth = backgroundCanvas.width / dpr;
-           const canvasHeight = backgroundCanvas.height / dpr;
-
-           backgroundContext.fillStyle = 'white';
-           backgroundContext.fillRect(0, 0, canvasWidth, canvasHeight);
            
-           const scale = Math.min(canvasWidth / img.width, canvasHeight / img.height);
-           const scaledWidth = img.width * scale;
-           const scaledHeight = img.height * scale;
-           
-           const x = (canvasWidth - scaledWidth) / 2;
-           const y = (canvasHeight - scaledHeight) / 2;
-           backgroundContext.drawImage(img, x, y, scaledWidth, scaledHeight);
-           
-           context.clearRect(0, 0, canvas.width, canvas.height);
-           historyRef.current = [];
-           historyIndexRef.current = -1;
-           saveState();
+           container.style.width = `${img.width}px`;
+           container.style.height = `${img.height}px`;
          }
          img.src = dataUrl;
       }
     }));
 
     return (
-      <div className="relative w-full h-full bg-white">
+      <div 
+        ref={containerRef}
+        className="relative w-full h-full bg-white mx-auto"
+      >
         <canvas
           ref={backgroundCanvasRef}
           className="absolute inset-0 pointer-events-none"
