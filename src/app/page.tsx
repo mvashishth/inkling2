@@ -838,26 +838,6 @@ export default function Home() {
                   </Tooltip>
                 </div>
             </div>
-            
-            <div className="flex-grow flex items-center justify-center px-4">
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <div className="w-full max-w-xs flex items-center gap-2">
-                             <span className="text-sm text-muted-foreground">PDF</span>
-                             <Slider
-                                 value={[viewerWidth]}
-                                 onValueChange={(val) => setViewerWidth(val[0])}
-                                 min={20}
-                                 max={80}
-                                 step={1}
-                                 className="w-full"
-                             />
-                             <span className="text-sm text-muted-foreground">Pinup</span>
-                        </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom"><p>Adjust Panel Split</p></TooltipContent>
-                </Tooltip>
-            </div>
 
             <div className="flex items-center gap-x-2 sm:gap-x-4">
                 <div className="flex items-center gap-1">
@@ -909,6 +889,26 @@ export default function Home() {
                 </div>
             </div>
         </aside>
+
+        <div className="flex items-center justify-center px-4 py-1 border-b bg-card shadow-sm z-20">
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <div className="w-full max-w-xs flex items-center gap-2">
+                         <span className="text-sm text-muted-foreground">PDF</span>
+                         <Slider
+                             value={[viewerWidth]}
+                             onValueChange={(val) => setViewerWidth(val[0])}
+                             min={20}
+                             max={80}
+                             step={1}
+                             className="w-full"
+                         />
+                         <span className="text-sm text-muted-foreground">Pinup</span>
+                    </div>
+                </TooltipTrigger>
+                <TooltipContent side="bottom"><p>Adjust Panel Split</p></TooltipContent>
+            </Tooltip>
+        </div>
 
         {(tool && ['draw', 'erase', 'highlight'].includes(tool)) && (
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-x-8 px-4 py-2 border-b bg-card shadow-sm z-10">
