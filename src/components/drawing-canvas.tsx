@@ -42,6 +42,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     const lastPointRef = useRef<Point | null>(null);
     const hasMovedRef = useRef(false);
 
+    // Refs for highlighter tool to prevent opacity buildup
+    const preStrokeImageDataRef = useRef<ImageData | null>(null);
+    const currentPathRef = useRef<Path2D | null>(null);
+
     const historyRef = useRef<ImageData[]>([]);
     const historyIndexRef = useRef<number>(-1);
 
@@ -129,6 +133,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       
       const point = getPoint(e);
       lastPointRef.current = point;
+
+      if (tool === 'highlight') {
+        preStrokeImageDataRef.current = context.getImageData(0, 0, context.canvas.width, context.canvas.height);
+        currentPathRef.current = new Path2D();
+        currentPathRef.current.moveTo(point.x, point.y);
+      }
     };
 
     const draw = (e: React.MouseEvent | React.TouchEvent) => {
@@ -138,19 +148,34 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       const context = contextRef.current;
       const currentPoint = getPoint(e);
 
-      context.globalCompositeOperation = tool === 'erase' ? 'destination-out' : 'source-over';
-      context.globalAlpha = tool === 'highlight' ? 0.05 : 1.0;
-      
-      const lineWidth = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
-      
-      context.lineWidth = lineWidth;
-      context.strokeStyle = penColor;
+      if (tool === 'highlight' && preStrokeImageDataRef.current && currentPathRef.current) {
+        context.putImageData(preStrokeImageDataRef.current, 0, 0);
 
-      context.beginPath();
-      context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
-      context.lineTo(currentPoint.x, currentPoint.y);
-      context.stroke();
+        currentPathRef.current.lineTo(currentPoint.x, currentPoint.y);
+        
+        context.globalCompositeOperation = 'source-over';
+        context.globalAlpha = 0.05;
+        context.strokeStyle = penColor;
+        context.lineWidth = highlighterSize;
+        context.stroke(currentPathRef.current);
 
+        // Reset context
+        context.globalAlpha = 1.0;
+      } else {
+        context.globalCompositeOperation = tool === 'erase' ? 'destination-out' : 'source-over';
+        context.globalAlpha = 1.0;
+        
+        const lineWidth = tool === 'draw' ? penSize : eraserSize;
+        
+        context.lineWidth = lineWidth;
+        context.strokeStyle = penColor;
+
+        context.beginPath();
+        context.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+        context.lineTo(currentPoint.x, currentPoint.y);
+        context.stroke();
+      }
+      
       lastPointRef.current = currentPoint;
     };
 
@@ -161,6 +186,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       if (context && !hasMovedRef.current && lastPointRef.current) {
         // This was a click, not a drag. Draw a dot.
         const point = lastPointRef.current;
+
+        // If it's a highlighter click, we need to restore the canvas first
+        if (tool === 'highlight' && preStrokeImageDataRef.current) {
+          context.putImageData(preStrokeImageDataRef.current, 0, 0);
+        }
+
         const size = tool === 'draw' ? penSize : tool === 'highlight' ? highlighterSize : eraserSize;
 
         if (tool === 'draw' || tool === 'highlight') {
@@ -171,6 +202,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             context.beginPath();
             context.arc(point.x, point.y, size / 2, 0, Math.PI * 2);
             context.fill();
+            context.globalAlpha = 1.0; // Reset alpha
         } else if (tool === 'erase') {
             context.globalCompositeOperation = 'destination-out';
             context.fillStyle = 'white';
@@ -182,6 +214,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
       setIsDrawing(false);
       lastPointRef.current = null;
+      preStrokeImageDataRef.current = null;
+      currentPathRef.current = null;
+      
       saveState();
     };
     
