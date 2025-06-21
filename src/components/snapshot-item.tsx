@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef } from 'react';
 import { X, Expand } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -26,74 +26,17 @@ interface SnapshotItemProps {
 }
 
 export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, onDelete, onClick, isSelected, onSelect }) => {
-    const [interaction, setInteraction] = useState<'drag' | 'resize' | null>(null);
-    const hasMovedRef = useRef(false);
-    const interactionStartRef = useRef<{
-        clientX: number;
-        clientY: number;
-        snapshotX: number;
-        snapshotY: number;
-        snapshotWidth: number;
-        snapshotHeight: number;
-    } | null>(null);
-
-    useEffect(() => {
-        if (!interaction) return;
-
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!interactionStartRef.current) return;
-            e.preventDefault();
-
-            if (!hasMovedRef.current) {
-                const dx = e.clientX - interactionStartRef.current.clientX;
-                const dy = e.clientY - interactionStartRef.current.clientY;
-                if (Math.sqrt(dx * dx + dy * dy) > 3) {
-                    hasMovedRef.current = true;
-                }
-            }
-
-            if (!hasMovedRef.current) return;
-
-            const { clientX, clientY, snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStartRef.current;
-            const dx = e.clientX - clientX;
-            const dy = e.clientY - clientY;
-
-            if (interaction === 'drag') {
-                onUpdate(snapshot.id, { x: snapshotX + dx, y: snapshotY + dy });
-            } else if (interaction === 'resize') {
-                onUpdate(snapshot.id, {
-                    width: Math.max(50, snapshotWidth + dx),
-                    height: Math.max(50, snapshotHeight + dy),
-                });
-            }
-        };
-
-        const handleMouseUp = () => {
-            if (!hasMovedRef.current) {
-                onSelect();
-                onClick();
-            }
-            setInteraction(null);
-            interactionStartRef.current = null;
-        };
-        
-        window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp, { once: true });
-
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [interaction, onUpdate, onClick, onSelect, snapshot.id]);
+    const itemRef = useRef<HTMLDivElement>(null);
 
     const handleInteractionStart = (e: React.MouseEvent, type: 'drag' | 'resize') => {
+        if (!itemRef.current) return;
+        
+        // Prevent default browser behavior, like text selection or image dragging
         e.preventDefault();
         e.stopPropagation();
-        
-        hasMovedRef.current = false;
-        setInteraction(type);
 
-        interactionStartRef.current = {
+        const interactionStart = {
+            type: type,
             clientX: e.clientX,
             clientY: e.clientY,
             snapshotX: snapshot.x,
@@ -101,10 +44,64 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             snapshotWidth: snapshot.width,
             snapshotHeight: snapshot.height,
         };
+
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            moveEvent.preventDefault();
+            const dx = moveEvent.clientX - interactionStart.clientX;
+            const dy = moveEvent.clientY - interactionStart.clientY;
+
+            if (interactionStart.type === 'drag') {
+                // By using transform, we don't trigger React re-renders during the drag.
+                itemRef.current!.style.transform = `translate(${dx}px, ${dy}px)`;
+            } else { // resize
+                const newWidth = Math.max(50, interactionStart.snapshotWidth + dx);
+                const newHeight = Math.max(50, interactionStart.snapshotHeight + dy);
+                itemRef.current!.style.width = `${newWidth}px`;
+                itemRef.current!.style.height = `${newHeight}px`;
+            }
+        };
+
+        const handleMouseUp = (upEvent: MouseEvent) => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            
+            const dx = upEvent.clientX - interactionStart.clientX;
+            const dy = upEvent.clientY - interactionStart.clientY;
+
+            const hasDragged = Math.sqrt(dx * dx + dy * dy) > 5;
+
+            // Reset the temporary styles
+            itemRef.current!.style.transform = '';
+            itemRef.current!.style.width = `${snapshot.width}px`;
+            itemRef.current!.style.height = `${snapshot.height}px`;
+
+            if (hasDragged) {
+                if (interactionStart.type === 'drag') {
+                    // Now we call onUpdate once with the final position.
+                    onUpdate(snapshot.id, {
+                        x: interactionStart.snapshotX + dx,
+                        y: interactionStart.snapshotY + dy,
+                    });
+                } else { // resize
+                     onUpdate(snapshot.id, {
+                        width: Math.max(50, interactionStart.snapshotWidth + dx),
+                        height: Math.max(50, interactionStart.snapshotHeight + dy),
+                    });
+                }
+            } else {
+                // If it wasn't a drag, it was a click.
+                onSelect();
+                onClick();
+            }
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
     };
 
     return (
         <div
+            ref={itemRef}
             style={{ 
                 left: snapshot.x, 
                 top: snapshot.y, 
