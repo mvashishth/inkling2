@@ -37,7 +37,7 @@ if (typeof window !== 'undefined') {
 
 type Tool = 'draw' | 'erase' | 'highlight';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
-const DEFAULT_HIGHLIGHTER_COLOR = '#22C55E';
+const DEFAULT_HIGHLIGHTER_COLOR = '#EAB308'; // Using yellow for highlighter as a default
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
     let binary = '';
@@ -99,6 +99,14 @@ export default function Home() {
     const annotationData = canvasRef.current?.getAnnotationData();
     if (!annotationData) return;
     
+    const defaultFileName = originalPdfFileName ? originalPdfFileName.replace(/\.pdf$/i, '') : 'annotated-project';
+    const chosenFileName = window.prompt("Enter filename for your project:", defaultFileName);
+
+    if (!chosenFileName) {
+        // User cancelled the prompt
+        return;
+    }
+
     const pdfDataBase64 = arrayBufferToBase64(originalPdfFile.slice(0));
 
     const projectData = {
@@ -112,7 +120,7 @@ export default function Home() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    const downloadFileName = (originalPdfFileName ? originalPdfFileName.replace(/\.pdf$/i, '') : 'annotated-project') + '.json';
+    const downloadFileName = chosenFileName.endsWith('.json') ? chosenFileName : `${chosenFileName}.json`;
     link.download = downloadFileName;
     document.body.appendChild(link);
     link.click();
@@ -205,7 +213,7 @@ export default function Home() {
                   const byteArray = new Uint8Array(byteNumbers);
                   const arrayBuffer = byteArray.buffer;
                   
-                  setOriginalPdfFile(arrayBuffer);
+                  setOriginalPdfFile(arrayBuffer.slice(0));
                   setOriginalPdfFileName(projectData.originalPdfFileName || file.name.replace(/\.json$/i, ".pdf"));
                   setAnnotationDataToLoad(projectData.annotations);
                   await loadPdf(arrayBuffer.slice(0));
@@ -224,7 +232,7 @@ export default function Home() {
       reader.readAsText(file);
     } else if (file.type === 'application/pdf') {
         const arrayBuffer = await file.arrayBuffer();
-        setOriginalPdfFile(arrayBuffer);
+        setOriginalPdfFile(arrayBuffer.slice(0));
         setOriginalPdfFileName(file.name);
         setAnnotationDataToLoad(null);
         await loadPdf(arrayBuffer.slice(0));
