@@ -104,6 +104,7 @@ export default function Home() {
   const [pageImages, setPageImages] = React.useState<string[]>([]);
   
   const [isPdfLoading, setIsPdfLoading] = React.useState(false);
+  const [isProjectLoading, setIsProjectLoading] = React.useState(false);
   const [pdfLoadProgress, setPdfLoadProgress] = React.useState(0);
   const [originalPdfFile, setOriginalPdfFile] = React.useState<ArrayBuffer | null>(null);
   const [originalPdfFileName, setOriginalPdfFileName] = React.useState<string | null>(null);
@@ -247,16 +248,18 @@ export default function Home() {
 
     setIsPdfLoading(true);
     setPdfLoadProgress(0);
-    setPageImages([]);
-
-    pdfCanvasRef.current?.clear();
-    pinupCanvasRef.current?.clear();
-
+    
+    // For a fresh PDF load, clear everything
     if (!isProjectLoad) {
+      setPageImages([]);
+      pdfCanvasRef.current?.clear();
+      pinupCanvasRef.current?.clear();
       setSnapshots([]);
       setInklings([]);
       setNotes([]);
       setUploadedImages([]);
+      setAnnotationDataToLoad(null);
+      setPinupAnnotationDataToLoad(null);
     }
 
     try {
@@ -265,7 +268,10 @@ export default function Home() {
       
       const pdf = await loadingTask.promise;
       const numPages = pdf.numPages;
-      pdfCanvasRef.current?.initializePages(numPages);
+      
+      if (!isProjectLoad) {
+        pdfCanvasRef.current?.initializePages(numPages);
+      }
 
       const newPageImages: string[] = [];
       
@@ -308,6 +314,7 @@ export default function Home() {
           try {
               const projectData = JSON.parse(event.target?.result as string);
               if (projectData.fileType === 'inkling-project' && projectData.pdfDataBase64) {
+                  setIsProjectLoading(true);
                   const byteCharacters = window.atob(projectData.pdfDataBase64);
                   const byteNumbers = new Array(byteCharacters.length);
                   for (let i = 0; i < byteCharacters.length; i++) {
@@ -316,14 +323,21 @@ export default function Home() {
                   const byteArray = new Uint8Array(byteNumbers);
                   const arrayBuffer = byteArray.buffer;
                   
+                  // Clear canvases first
+                  pdfCanvasRef.current?.clear();
+                  pinupCanvasRef.current?.clear();
+
+                  // Set all data states
                   setOriginalPdfFile(arrayBuffer.slice(0));
                   setOriginalPdfFileName(projectData.originalPdfFileName || file.name.replace(/\.json$/i, ".pdf"));
-                  setAnnotationDataToLoad(projectData.pdfAnnotations || null);
-                  setPinupAnnotationDataToLoad(projectData.pinupAnnotations || null);
                   setSnapshots(projectData.snapshots || []);
                   setInklings(projectData.inklings || []);
                   setNotes(projectData.notes || []);
                   setUploadedImages(projectData.uploadedImages || []);
+                  setAnnotationDataToLoad(projectData.pdfAnnotations || null);
+                  setPinupAnnotationDataToLoad(projectData.pinupAnnotations || null);
+                  
+                  // Load the PDF pages, which will trigger canvas setup
                   await loadPdf(arrayBuffer.slice(0), true);
               } else {
                   throw new Error("Invalid project file format.");
@@ -335,6 +349,7 @@ export default function Home() {
                   description: "The selected file is not a valid project file.",
                   variant: "destructive",
               });
+              setIsProjectLoading(false);
           }
       };
       reader.readAsText(file);
@@ -342,8 +357,6 @@ export default function Home() {
         const arrayBuffer = await file.arrayBuffer();
         setOriginalPdfFile(arrayBuffer.slice(0));
         setOriginalPdfFileName(file.name);
-        setAnnotationDataToLoad(null);
-        setPinupAnnotationDataToLoad(null);
         await loadPdf(arrayBuffer.slice(0), false);
     } else {
         toast({
@@ -510,9 +523,9 @@ export default function Home() {
       const pageRect = pageElement.getBoundingClientRect();
       
       const rectCenterY_relative = snapshot.sourceRect.y + (snapshot.sourceRect.height / 2);
-      const rectCenterY_absolute = (pageRect.top - containerRect.top) + rectCenterY_relative;
+      const rectCenterY_absolute = pageRect.top - containerRect.top + scrollContainer.scrollTop;
 
-      const targetScrollTop = scrollContainer.scrollTop + rectCenterY_absolute - (containerRect.height / 2);
+      const targetScrollTop = rectCenterY_absolute - (containerRect.height / 2);
 
       scrollContainer.scrollTo({
         top: targetScrollTop,
@@ -600,11 +613,10 @@ export default function Home() {
       const pageElement = pdfCanvasRef.current?.getPageElement(inkling.pdfPoint.pageIndex);
       if (pageElement && scrollContainer) {
         const containerRect = scrollContainer.getBoundingClientRect();
-        const pageRect = pageElement.getBoundingClientRect();
         
         const pointY_relative = inkling.pdfPoint.y; 
-        const pointY_absolute = (pageRect.top - containerRect.top) + pointY_relative;
-        const targetScrollTop = scrollContainer.scrollTop + pointY_absolute - (containerRect.height / 2);
+        const pointY_absolute = pageElement.offsetTop + pointY_relative;
+        const targetScrollTop = pointY_absolute - (containerRect.height / 2);
 
         scrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
       }
@@ -621,11 +633,10 @@ export default function Home() {
       
       if (pinupElement && pinupScrollContainer) {
         const containerRect = pinupScrollContainer.getBoundingClientRect();
-        const elementRect = pinupElement.getBoundingClientRect();
 
         const pointY_relative = y;
-        const pointY_absolute = (elementRect.top - containerRect.top) + pointY_relative;
-        const targetScrollTop = pinupScrollContainer.scrollTop + pointY_absolute - (containerRect.height / 2);
+        const pointY_absolute = pinupElement.offsetTop + pointY_relative;
+        const targetScrollTop = pointY_absolute - (containerRect.height / 2);
 
         pinupScrollContainer.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
         
@@ -1004,6 +1015,8 @@ export default function Home() {
                 highlighterColor={highlighterColor}
                 onHistoryChange={handlePdfHistoryChange}
                 initialAnnotations={annotationDataToLoad}
+                isProjectLoading={isProjectLoading}
+                onProjectLoadComplete={() => setIsProjectLoading(false)}
                 toast={toast}
                 onSnapshot={handleSnapshot}
                 onCanvasClick={handleCanvasClick}
@@ -1110,6 +1123,8 @@ export default function Home() {
                         highlighterColor={highlighterColor}
                         onHistoryChange={handlePinupHistoryChange}
                         initialAnnotations={pinupAnnotationDataToLoad}
+                        isProjectLoading={isProjectLoading}
+                        onProjectLoadComplete={() => setIsProjectLoading(false)}
                         toast={toast}
                         onNoteCreate={handleNoteCreate}
                     />

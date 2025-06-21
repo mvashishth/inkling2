@@ -47,6 +47,8 @@ interface DrawingCanvasProps {
   highlighterColor: string;
   onHistoryChange: (canUndo: boolean, canRedo: boolean) => void;
   initialAnnotations: AnnotationData | null;
+  isProjectLoading: boolean;
+  onProjectLoadComplete: () => void;
   toast: (options: { title: string; description: string; variant?: 'default' | 'destructive' }) => void;
   onSnapshot?: (imageDataUrl: string, pageIndex: number, rect: { x: number; y: number; width: number; height: number }) => void;
   onNoteCreate?: (rect: { x: number; y: number; width: number; height: number }) => void;
@@ -63,6 +65,7 @@ interface PageProps {
   pageContainerRef: React.RefObject<HTMLDivElement>;
   pageHistoryRef: React.MutableRefObject<Map<number, ImageData[]>>;
   pageHistoryIndexRef: React.MutableRefObject<Map<number, number>>;
+  isProjectLoading: boolean;
   startDrawing: (e: React.MouseEvent | React.TouchEvent, pageIndex: number) => void;
   restoreState: (pageIndex: number, historyIndex: number) => void;
   saveState: (pageIndex: number) => void;
@@ -78,6 +81,7 @@ const Page = React.memo(({
   pageContainerRef,
   pageHistoryRef,
   pageHistoryIndexRef,
+  isProjectLoading,
   startDrawing,
   restoreState,
   saveState,
@@ -108,7 +112,7 @@ const Page = React.memo(({
 
               if (history.length > 0 && historyIdx > -1 && history[historyIdx]) {
                 restoreState(index, historyIdx);
-              } else {
+              } else if (!isProjectLoading) {
                 saveState(index);
               }
           }
@@ -126,7 +130,7 @@ const Page = React.memo(({
         }
         return () => resizeObserver.disconnect();
         
-    }, [index, restoreState, saveState, contextRefs, drawingCanvasRefs, pageContainerRef, pageHistoryRef, pageHistoryIndexRef]);
+    }, [index, restoreState, saveState, contextRefs, drawingCanvasRefs, pageContainerRef, pageHistoryRef, pageHistoryIndexRef, isProjectLoading]);
 
     return (
         <div className="relative shadow-lg my-4 mx-auto w-fit page-wrapper">
@@ -159,7 +163,7 @@ Page.displayName = 'Page';
 
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
-  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange, initialAnnotations, toast, onSnapshot, onNoteCreate, onCanvasClick }, ref) => {
+  ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, highlighterColor, onHistoryChange, initialAnnotations, isProjectLoading, onProjectLoadComplete, toast, onSnapshot, onNoteCreate, onCanvasClick }, ref) => {
     const isDrawingRef = useRef(false);
     const hasMovedRef = useRef(false);
 
@@ -252,6 +256,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
             pageHistoryRef.current = newHistoryMap;
             pageHistoryIndexRef.current = newHistoryIndexMap;
+
+            // Restore state for all pages after loading annotations
+            newHistoryMap.forEach((_, pageIndex) => {
+                const historyIdx = newHistoryIndexMap.get(pageIndex);
+                if (historyIdx !== undefined) {
+                    restoreState(pageIndex, historyIdx);
+                }
+            });
+            onProjectLoadComplete();
+
         } catch(e) {
             console.error("Failed to load annotations, file may be corrupt.", e);
             toast({
@@ -263,7 +277,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             pageHistoryIndexRef.current.clear();
         }
       }
-    }, [initialAnnotations, toast]);
+    }, [initialAnnotations, toast, restoreState, onProjectLoadComplete]);
 
     const getPoint = useCallback((e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent, canvasIndex: number): Point => {
       const canvas = drawingCanvasRefs.current[canvasIndex];
@@ -524,12 +538,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         contextRefs.current.forEach((context, index) => {
             if (context) {
               context.clearRect(0,0,context.canvas.width, context.canvas.height);
-              pageHistoryRef.current.set(index, []);
-              pageHistoryIndexRef.current.set(index, -1);
             }
         });
         
-        if (pageHistoryRef.current.size === 0) {
+        pageHistoryRef.current.clear();
+        pageHistoryIndexRef.current.clear();
+
+        if (pages.length === 0) {
             pageHistoryRef.current.set(0, []);
             pageHistoryIndexRef.current.set(0, -1);
         }
@@ -614,7 +629,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
                 if (history.length > 0 && historyIdx > -1 && history[historyIdx]) {
                   restoreState(0, historyIdx);
-                } else {
+                } else if (!isProjectLoading) {
                   pageHistoryRef.current.clear();
                   pageHistoryIndexRef.current.clear();
                   pageHistoryRef.current.set(0, []);
@@ -629,7 +644,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             return () => resizeObserver.disconnect();
         }
       }
-    }, [pages.length, saveState, restoreState, updateHistoryButtons]);
+    }, [pages.length, saveState, restoreState, updateHistoryButtons, isProjectLoading]);
 
     if (pages.length === 0) {
         return (
@@ -683,6 +698,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
                   pageContainerRef={pageContainerRef}
                   pageHistoryRef={pageHistoryRef}
                   pageHistoryIndexRef={pageHistoryIndexRef}
+                  isProjectLoading={isProjectLoading}
                   startDrawing={startDrawing}
                   restoreState={restoreState}
                   saveState={saveState}
