@@ -39,12 +39,9 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
         snapshotY: number;
         snapshotWidth: number;
         snapshotHeight: number;
-        hasDragged: boolean;
     } | null>(null);
-
-    // This ref stores the last known coordinates from a move event,
-    // which is more reliable than using the coordinates from a touchend event.
-    const lastMovePointRef = useRef<{ x: number, y: number } | null>(null);
+    
+    const wasDraggedRef = useRef(false);
 
     const handleInteractionStart = (e: React.MouseEvent | React.TouchEvent, type: InteractionType) => {
         e.stopPropagation();
@@ -59,67 +56,82 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             snapshotY: snapshot.y,
             snapshotWidth: snapshot.width,
             snapshotHeight: snapshot.height,
-            hasDragged: false,
         };
-        lastMovePointRef.current = { x: point.clientX, y: point.clientY };
+        wasDraggedRef.current = false;
         setInteractionType(type);
     };
+    
+    const handleBodyClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (wasDraggedRef.current) return;
+        onSelect();
+        onClick();
+    }
+    
+    const handleResizeClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (wasDraggedRef.current) return;
+        onSelect();
+    }
 
     useEffect(() => {
         if (!interactionType) return;
 
+        const lastMovePoint = { x: 0, y: 0 };
+
         const handleMove = (e: MouseEvent | TouchEvent) => {
-            if (!itemRef.current || !containerRef.current || !interactionStartRef.current) return;
+            if (!interactionStartRef.current) return;
             
-            if ('touches' in e) {
+            if ('preventDefault' in e && e.cancelable) {
                 e.preventDefault();
             }
 
             const isTouchEvent = 'touches' in e;
             const point = isTouchEvent ? e.touches[0] : e;
-            lastMovePointRef.current = { x: point.clientX, y: point.clientY };
+            
+            if (!point) return;
+
+            lastMovePoint.x = point.clientX;
+            lastMovePoint.y = point.clientY;
 
             const dx = point.clientX - interactionStartRef.current.startX;
             const dy = point.clientY - interactionStartRef.current.startY;
 
-            if (!interactionStartRef.current.hasDragged && Math.sqrt(dx*dx + dy*dy) > 5) {
-                interactionStartRef.current.hasDragged = true;
+            if (!wasDraggedRef.current && Math.sqrt(dx*dx + dy*dy) > 5) {
+                wasDraggedRef.current = true;
             }
 
-            if (interactionType === 'drag') {
-                const { snapshotX, snapshotY } = interactionStartRef.current;
-                const newX = snapshotX + dx;
-                const newY = snapshotY + dy;
-                itemRef.current.style.transform = `translate(${newX - snapshotX}px, ${newY - snapshotY}px)`;
-            } else if (interactionType === 'resize') {
-                const { snapshotWidth, snapshotHeight } = interactionStartRef.current;
-                const aspectRatio = snapshotHeight / snapshotWidth;
-                const newWidth = Math.max(50, snapshotWidth + dx);
-                const newHeight = newWidth * aspectRatio;
-
-                itemRef.current.style.width = `${newWidth}px`;
-                itemRef.current.style.height = `${newHeight}px`;
+            if (wasDraggedRef.current && itemRef.current) {
+                if (interactionType === 'drag') {
+                    itemRef.current.style.transform = `translate(${dx}px, ${dy}px)`;
+                } else if (interactionType === 'resize') {
+                    const { snapshotWidth, snapshotHeight } = interactionStartRef.current;
+                    const aspectRatio = snapshotHeight / snapshotWidth;
+                    const newWidth = Math.max(50, snapshotWidth + dx);
+                    const newHeight = newWidth * aspectRatio;
+                    itemRef.current.style.width = `${newWidth}px`;
+                    itemRef.current.style.height = `${newHeight}px`;
+                }
             }
         };
 
-        const handleEnd = () => {
-            if (!itemRef.current || !containerRef.current || !interactionStartRef.current) {
-                setInteractionType(null);
-                return;
+        const handleEnd = (e: MouseEvent | TouchEvent) => {
+            if (!interactionStartRef.current) {
+                 setInteractionType(null);
+                 return;
             }
 
-            const { hasDragged, startX, startY, snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStartRef.current;
-            
-            itemRef.current.style.transform = '';
-            itemRef.current.style.width = '';
-            itemRef.current.style.height = '';
-
-            if (hasDragged) {
-                const point = lastMovePointRef.current;
-                if (!point) return;
-
-                const dx = point.x - startX;
-                const dy = point.y - startY;
+            if (wasDraggedRef.current) {
+                if (!itemRef.current || !containerRef.current) return;
+                
+                itemRef.current.style.transform = '';
+                itemRef.current.style.width = '';
+                itemRef.current.style.height = '';
+                
+                const { startX, startY, snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStartRef.current;
+                
+                const dx = lastMovePoint.x - startX;
+                const dy = lastMovePoint.y - startY;
 
                 if (interactionType === 'drag') {
                     const { clientWidth, clientHeight } = containerRef.current;
@@ -142,19 +154,12 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
                         newHeight = clientHeight - snapshotY;
                         newWidth = newHeight / aspectRatio;
                     }
-                    
                     onUpdate(snapshot.id, { width: newWidth, height: newHeight });
-                }
-            } else {
-                onSelect();
-                if (interactionType === 'drag') {
-                    onClick();
                 }
             }
             
             setInteractionType(null);
             interactionStartRef.current = null;
-            lastMovePointRef.current = null;
         };
         
         window.addEventListener('mousemove', handleMove);
@@ -168,7 +173,7 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             window.removeEventListener('touchmove', handleMove);
             window.removeEventListener('touchend', handleEnd);
         };
-    }, [interactionType, snapshot.id, containerRef, onClick, onDelete, onSelect, onUpdate, snapshot.x, snapshot.y, snapshot.width, snapshot.height]);
+    }, [interactionType, snapshot.id, containerRef, onUpdate, snapshot.x, snapshot.y, snapshot.width, snapshot.height]);
 
     return (
         <div
@@ -187,6 +192,7 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             )}
             onMouseDown={(e) => handleInteractionStart(e, 'drag')}
             onTouchStart={(e) => handleInteractionStart(e, 'drag')}
+            onClick={handleBodyClick}
             data-ai-hint="pdf snapshot"
         >
             {isSelected && (
@@ -206,6 +212,7 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
                     <div 
                         onMouseDown={(e) => handleInteractionStart(e, 'resize')}
                         onTouchStart={(e) => handleInteractionStart(e, 'resize')}
+                        onClick={handleResizeClick}
                         className="absolute -bottom-2 -right-2 bg-blue-500 text-white rounded-full p-1 z-20 cursor-nwse-resize hover:scale-110 transition-transform"
                         aria-label="Resize snapshot"
                     >
