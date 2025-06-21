@@ -123,20 +123,27 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         const newHistoryMap = new Map<number, ImageData[]>();
         const newHistoryIndexMap = new Map<number, number>();
 
-        for (const [pageIndex, history] of initialAnnotations.history) {
-            const newPageHistory = history.map(s_img => {
-                const dataArray = base64ToUint8ClampedArray(s_img.data);
-                return new ImageData(dataArray, s_img.width, s_img.height);
-            });
-            newHistoryMap.set(pageIndex, newPageHistory);
-        }
-        
-        for (const [pageIndex, index] of initialAnnotations.historyIndex) {
-            newHistoryIndexMap.set(pageIndex, index);
-        }
+        try {
+            for (const [pageIndex, history] of initialAnnotations.history) {
+                const newPageHistory = history.map(s_img => {
+                    const dataArray = base64ToUint8ClampedArray(s_img.data);
+                    return new ImageData(dataArray, s_img.width, s_img.height);
+                });
+                newHistoryMap.set(pageIndex, newPageHistory);
+            }
+            
+            for (const [pageIndex, index] of initialAnnotations.historyIndex) {
+                newHistoryIndexMap.set(pageIndex, index);
+            }
 
-        pageHistoryRef.current = newHistoryMap;
-        pageHistoryIndexRef.current = newHistoryIndexMap;
+            pageHistoryRef.current = newHistoryMap;
+            pageHistoryIndexRef.current = newHistoryIndexMap;
+        } catch(e) {
+            console.error("Failed to load annotations, file may be corrupt.", e);
+            alert("Failed to load annotations, the project file may be corrupt. Loading PDF without annotations.");
+            pageHistoryRef.current.clear();
+            pageHistoryIndexRef.current.clear();
+        }
 
         // The Page component's useEffect will handle calling restoreState once the canvas is sized.
       }
