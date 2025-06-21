@@ -19,12 +19,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 type Tool = 'draw' | 'erase';
+const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
 
 export default function Home() {
   const [tool, setTool] = React.useState<Tool>('draw');
   const [penSize, setPenSize] = React.useState(5);
+  const [penColor, setPenColor] = React.useState(COLORS[0]);
   const [eraserSize, setEraserSize] = React.useState(20);
   const [canUndo, setCanUndo] = React.useState(false);
   const [canRedo, setCanRedo] = React.useState(false);
@@ -108,6 +111,31 @@ export default function Home() {
                 onValueChange={handleSliderChange}
               />
             </div>
+
+            {tool === 'draw' && (
+              <div className="flex flex-row flex-wrap justify-center gap-2 pt-2 md:w-full md:max-w-[5rem]">
+                {COLORS.map((color) => (
+                  <Tooltip key={color}>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => setPenColor(color)}
+                        className={cn(
+                          'h-7 w-7 rounded-full border-2 transition-all hover:scale-110',
+                          penColor === color
+                            ? 'border-primary'
+                            : 'border-muted-foreground/20'
+                        )}
+                        style={{ backgroundColor: color }}
+                        aria-label={`Set pen color to ${color}`}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p>{color.toUpperCase()}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+              </div>
+            )}
             
             <Separator className="hidden md:block" />
             <div className="flex items-center gap-2">
@@ -154,6 +182,7 @@ export default function Home() {
           <DrawingCanvas
             ref={canvasRef}
             tool={tool}
+            penColor={penColor}
             penSize={penSize}
             eraserSize={eraserSize}
             onHistoryChange={handleHistoryChange}
