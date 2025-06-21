@@ -85,6 +85,7 @@ export default function Home() {
   const canUndo = activeCanvas === 'pdf' ? pdfCanUndo : pinupCanUndo;
   const canRedo = activeCanvas === 'pdf' ? pdfCanRedo : pinupCanRedo;
   const activeCanvasRef = activeCanvas === 'pdf' ? pdfCanvasRef : pinupCanvasRef;
+  const currentTool = activeCanvas === 'pdf' ? tool : null;
 
   const handleToolClick = (selectedTool: Tool) => {
     setTool((currentTool) => (currentTool === selectedTool ? null : selectedTool));
@@ -171,6 +172,16 @@ export default function Home() {
   };
   
   const loadPdf = async (arrayBuffer: ArrayBuffer) => {
+    if (!arrayBuffer || arrayBuffer.byteLength === 0) {
+      toast({
+        title: "Cannot load PDF",
+        description: "The provided file is empty or invalid.",
+        variant: "destructive",
+      });
+      setIsPdfLoading(false);
+      return;
+    }
+
     setIsPdfLoading(true);
     setPdfLoadProgress(0);
     setPageImages([]);
@@ -179,7 +190,7 @@ export default function Home() {
     pinupCanvasRef.current?.clear();
 
     try {
-      const loadingTask = pdfjsLib.getDocument(arrayBuffer.slice(0));
+      const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) });
       loadingTask.onProgress = (progressData) => {};
       
       const pdf = await loadingTask.promise;
@@ -504,10 +515,12 @@ export default function Home() {
         )}
 
         <main className="flex-1 flex flex-row overflow-hidden">
-          <div className="w-3/5 flex flex-col">
+          <div 
+            className="w-3/5 flex flex-col"
+            onMouseDownCapture={() => setActiveCanvas('pdf')}
+          >
             <div 
               className="flex-1 relative bg-background overflow-auto"
-              onMouseDownCapture={() => setActiveCanvas('pdf')}
             >
               {isPdfLoading && (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
@@ -526,7 +539,7 @@ export default function Home() {
               <DrawingCanvas
                 ref={pdfCanvasRef}
                 pages={pageImages}
-                tool={tool}
+                tool={currentTool}
                 penColor={penColor}
                 penSize={penSize}
                 eraserSize={eraserSize}
