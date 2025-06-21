@@ -17,6 +17,7 @@ import {
   StickyNote,
   Lock,
   Unlock,
+  ArrowUp,
 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { DrawingCanvas, type DrawingCanvasRef, type AnnotationData } from '@/components/drawing-canvas';
@@ -541,6 +542,13 @@ export default function Home() {
     setInklings(prev => prev.filter(ink => ink.id !== id));
   };
 
+  const handleScrollToTop = () => {
+    pinupScrollContainerRef.current?.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
   React.useEffect(() => {
     const mainContainer = mainContainerRef.current;
     if (!mainContainer) return;
@@ -909,21 +917,38 @@ export default function Home() {
                           </Tooltip>
                       ))}
                   </div>
-                   <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => setIsPinupScrollLocked(prev => !prev)}
-                                className="h-8 w-8 rounded-lg"
-                            >
-                                {isPinupScrollLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">
-                            <p>{isPinupScrollLocked ? 'Unlock Scroll' : 'Lock Scroll'}</p>
-                        </TooltipContent>
-                    </Tooltip>
+                  <div className="flex items-center gap-1">
+                    <Tooltip>
+                          <TooltipTrigger asChild>
+                              <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => setIsPinupScrollLocked(prev => !prev)}
+                                  className="h-8 w-8 rounded-lg"
+                              >
+                                  {isPinupScrollLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                              </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                              <p>{isPinupScrollLocked ? 'Unlock Scroll' : 'Lock Scroll'}</p>
+                          </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                          <TooltipTrigger asChild>
+                              <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={handleScrollToTop}
+                                  className="h-8 w-8 rounded-lg"
+                              >
+                                  <ArrowUp className="h-4 w-4" />
+                              </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                              <p>Scroll to Top</p>
+                          </TooltipContent>
+                      </Tooltip>
+                    </div>
               </header>
               <div 
                 ref={pinupScrollContainerRef}
