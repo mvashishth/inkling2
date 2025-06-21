@@ -30,6 +30,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { useToast } from "@/hooks/use-toast";
 import { Progress } from '@/components/ui/progress';
@@ -121,6 +131,8 @@ export default function Home() {
   const [inklingRenderData, setInklingRenderData] = React.useState<InklingRenderData[]>([]);
   const [pendingInklingRenderPoint, setPendingInklingRenderPoint] = React.useState<{cx: number, cy: number} | null>(null);
   const [hoveredInkling, setHoveredInkling] = React.useState<string | null>(null);
+
+  const [isClearConfirmOpen, setIsClearConfirmOpen] = React.useState(false);
 
   const canUndo = activeCanvas === 'pdf' ? pdfCanUndo : pinupCanUndo;
   const canRedo = activeCanvas === 'pdf' ? pdfCanRedo : pinupCanRedo;
@@ -336,21 +348,24 @@ export default function Home() {
   };
   
   const handleClear = () => {
-    if (activeCanvas === 'pdf') {
-        pdfCanvasRef.current?.clear();
-        setPageImages([]);
-        setOriginalPdfFile(null);
-        setOriginalPdfFileName(null);
-        setAnnotationDataToLoad(null);
-        setSnapshots([]);
-        setInklings([]);
-        setNotes([]);
-    } else {
-        pinupCanvasRef.current?.clear();
-        setSnapshots([]);
-        setNotes([]);
-        setInklings([]);
-    }
+    setIsClearConfirmOpen(true);
+  };
+  
+  const handleConfirmClear = () => {
+    // Clear PDF viewer
+    pdfCanvasRef.current?.clear();
+    setPageImages([]);
+    setOriginalPdfFile(null);
+    setOriginalPdfFileName(null);
+    setAnnotationDataToLoad(null);
+
+    // Clear Pinup board
+    pinupCanvasRef.current?.clear();
+    setSnapshots([]);
+    setNotes([]);
+    setInklings([]);
+
+    setIsClearConfirmOpen(false);
   };
 
   const handleSnapshot = React.useCallback((
@@ -933,6 +948,27 @@ export default function Home() {
             )}
           </svg>
         </main>
+
+        <AlertDialog open={isClearConfirmOpen} onOpenChange={setIsClearConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action will clear the entire canvas, including the loaded PDF, all annotations, snapshots, notes, and links. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={handleConfirmClear}
+              >
+                Yes, Clear All
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
       </div>
     </TooltipProvider>
   );
