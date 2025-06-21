@@ -627,7 +627,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
             ref={pageContainerRef}
             className="w-full h-full"
           >
-            <div className="relative w-full h-full bg-white">
+            <div className="relative w-full h-full">
               <canvas
                 ref={el => { if(el) drawingCanvasRefs.current[0] = el}}
                 onMouseDown={(e) => startDrawing(e, 0)}

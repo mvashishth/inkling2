@@ -133,6 +133,7 @@ export default function Home() {
 
   const [isClearConfirmOpen, setIsClearConfirmOpen] = React.useState(false);
   const [viewerWidth, setViewerWidth] = React.useState(40);
+  const [pinupBgColor, setPinupBgColor] = React.useState('#ffffff');
 
   const canUndo = activeCanvas === 'pdf' ? pdfCanUndo : pinupCanUndo;
   const canRedo = activeCanvas === 'pdf' ? pdfCanRedo : pinupCanRedo;
@@ -847,9 +848,38 @@ export default function Home() {
             className="flex flex-col"
             style={{ width: `${100 - viewerWidth}%` }}
           >
-              <header className="p-2 text-center font-semibold bg-card border-b">Pinup Board</header>
+              <header className="p-2 flex items-center justify-center gap-4 font-semibold bg-card border-b">
+                  <span className="text-center">Pinup Board</span>
+                  <div className="flex items-center gap-2">
+                      {Object.entries({
+                          'White': '#ffffff',
+                          'Lavender': '#e6e6fa',
+                          'Dark Grey': '#4a4a4a'
+                      }).map(([name, color]) => (
+                          <Tooltip key={name}>
+                              <TooltipTrigger asChild>
+                                  <button
+                                      onClick={() => setPinupBgColor(color)}
+                                      className={cn(
+                                          'h-5 w-5 rounded-full border-2 transition-all hover:scale-110',
+                                          pinupBgColor === color
+                                              ? 'border-primary'
+                                              : 'border-muted-foreground/20'
+                                      )}
+                                      style={{ backgroundColor: color }}
+                                      aria-label={`Set pinup background to ${name}`}
+                                  />
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">
+                                  <p>{name}</p>
+                              </TooltipContent>
+                          </Tooltip>
+                      ))}
+                  </div>
+              </header>
               <div 
-                className="flex-1 relative bg-background overflow-auto"
+                className="flex-1 relative overflow-auto"
+                style={{ backgroundColor: pinupBgColor }}
                 onMouseDownCapture={(e) => {
                   if (e.target === e.currentTarget) {
                     setActiveCanvas('pinup');
