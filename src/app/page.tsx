@@ -407,6 +407,24 @@ export default function Home() {
     });
   };
   
+  const handleInklingEndpointClick = (inklingId: string, endpoint: 'pdf' | 'snapshot') => {
+    const inkling = inklings.find(i => i.id === inklingId);
+    if (!inkling) return;
+
+    if (endpoint === 'snapshot') {
+      const pageElement = pdfCanvasRef.current?.getPageElement(inkling.pdfPoint.pageIndex);
+      if (pageElement) {
+        pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    } else { // 'pdf'
+      const snapshotElement = pinupContainerRef.current?.querySelector(`[data-snapshot-id="${inkling.snapshotPoint.snapshotId}"]`) as HTMLDivElement;
+      if (snapshotElement) {
+        snapshotElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setSelectedSnapshot(inkling.snapshotPoint.snapshotId);
+      }
+    }
+  };
+
   const handleDeleteInkling = (id: string) => {
     setInklings(prev => prev.filter(ink => ink.id !== id));
   };
@@ -773,9 +791,15 @@ export default function Home() {
                         fill="none" 
                         className="transition-all pointer-events-none"
                     />
+
+                    {/* Visible dots */}
                     <circle cx={data.startCircle.cx} cy={data.startCircle.cy} r="4" fill={hoveredInkling === data.id ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} className="transition-all pointer-events-none"/>
                     <circle cx={data.endCircle.cx} cy={data.endCircle.cy} r="4" fill={hoveredInkling === data.id ? 'hsl(var(--destructive))' : 'hsl(var(--primary))'} className="transition-all pointer-events-none"/>
-                    
+
+                    {/* Clickable areas for endpoints */}
+                    <circle cx={data.startCircle.cx} cy={data.startCircle.cy} r="10" fill="transparent" className="pointer-events-auto cursor-pointer" onClick={() => handleInklingEndpointClick(data.id, 'pdf')} />
+                    <circle cx={data.endCircle.cx} cy={data.endCircle.cy} r="10" fill="transparent" className="pointer-events-auto cursor-pointer" onClick={() => handleInklingEndpointClick(data.id, 'snapshot')} />
+
                     {hoveredInkling === data.id && (
                       <g className="pointer-events-auto cursor-pointer" onClick={() => handleDeleteInkling(data.id)}>
                           <circle cx={(data.startCircle.cx + data.endCircle.cx) / 2} cy={(data.startCircle.cy + data.endCircle.cy) / 2} r="10" fill="white" stroke="hsl(var(--destructive))" />
