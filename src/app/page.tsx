@@ -5,7 +5,6 @@ import * as React from 'react';
 import {
   Pencil,
   Eraser,
-  Download,
   Undo,
   Redo,
   Trash2,
@@ -145,21 +144,6 @@ export default function Home() {
     setTool((currentTool) => (currentTool === selectedTool ? null : selectedTool));
     if (selectedTool !== 'inkling') {
       setPendingInkling(null);
-    }
-  };
-
-  const handleExport = () => {
-    const exportData = activeCanvasRef.current?.exportAsDataURL();
-    if (exportData?.dataUrl) {
-      const link = document.createElement('a');
-      link.href = exportData.dataUrl;
-      const fileName = activeCanvas === 'pdf'
-        ? `inkling-drawing-page-${exportData.pageNum}.png`
-        : 'inkling-pinup-board.png';
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
     }
   };
 
@@ -729,14 +713,6 @@ export default function Home() {
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent side="bottom"><p>Clear Canvas</p></TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={handleExport} className="h-10 w-10 rounded-lg">
-                            <Download className="h-5 w-5" />
-                            </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom"><p>Export as PNG</p></TooltipContent>
                     </Tooltip>
                 </div>
             </div>
