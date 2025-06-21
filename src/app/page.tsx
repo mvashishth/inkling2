@@ -433,27 +433,33 @@ export default function Home() {
   }, [pendingInkling, toast]);
 
   const handleNoteClick = React.useCallback((note: Note, e: React.MouseEvent<HTMLDivElement>) => {
-    if (pendingInkling) {
-      const target = e.currentTarget;
-      const rect = target.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
+    const target = e.target as HTMLElement;
 
-      const newInkling: Inkling = {
-        id: `inkling_${Date.now()}`,
-        pdfPoint: pendingInkling,
-        pinupPoint: { targetId: note.id, targetType: 'note', x, y },
-      };
-      setInklings(prev => [...prev, newInkling]);
-      setPendingInkling(null);
-      setTool(null);
-      toast({
-        title: "Link Created!",
-        description: "A new link between the PDF and the note has been created.",
-      });
-      e.stopPropagation();
+    if (pendingInkling) {
+      const isHeaderClick = !!target.closest('[data-drag-handle="true"]');
+      if (isHeaderClick) {
+        const noteElement = e.currentTarget;
+        const rect = noteElement.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+  
+        const newInkling: Inkling = {
+          id: `inkling_${Date.now()}`,
+          pdfPoint: pendingInkling,
+          pinupPoint: { targetId: note.id, targetType: 'note', x, y },
+        };
+        setInklings(prev => [...prev, newInkling]);
+        setPendingInkling(null);
+        setTool(null);
+        toast({
+          title: "Link Created!",
+          description: "A new link between the PDF and the note has been created.",
+        });
+        e.stopPropagation();
+      }
       return;
     }
+    
     setSelectedNote(note.id);
     setSelectedSnapshot(null);
   }, [pendingInkling, toast]);
@@ -463,7 +469,7 @@ export default function Home() {
     setPendingInkling({ pageIndex, x: point.x, y: point.y });
     toast({
         title: "Link Started",
-        description: "Click on a snapshot or note in the pinup board to complete the link.",
+        description: "Click on a snapshot or a note's header in the pinup board to complete the link.",
     });
   };
   
@@ -880,10 +886,6 @@ export default function Home() {
                         onDelete={deleteNote}
                         onClick={(e) => handleNoteClick(note, e)}
                         isSelected={selectedNote === note.id}
-                        onSelect={() => {
-                            setSelectedNote(note.id);
-                            setSelectedSnapshot(null);
-                        }}
                         containerRef={pinupContainerRef}
                       />
                     ))}

@@ -21,11 +21,10 @@ interface NoteItemProps {
     onDelete: (id:string) => void;
     onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
     isSelected: boolean;
-    onSelect: () => void;
     containerRef: React.RefObject<HTMLDivElement>;
 }
 
-export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, onClick, isSelected, onSelect, containerRef }) => {
+export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, onClick, isSelected, containerRef }) => {
     const itemRef = useRef<HTMLDivElement>(null);
     const interactionRef = useRef<{
         type: 'drag' | 'resize';
@@ -103,12 +102,11 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, on
         if (hasMovedRef.current) return;
         
         const target = e.target as HTMLElement;
-        if(target.closest('[data-drag-handle="true"]') || target.closest('[aria-label="Resize note"]') || target.closest('[aria-label="Delete note"]') || target.closest('textarea')) {
+        if(target.closest('[aria-label="Resize note"]') || target.closest('[aria-label="Delete note"]')) {
             return;
         }
-        onSelect();
         onClick(e);
-    }, [onSelect, onClick]);
+    }, [onClick]);
 
 
     useEffect(() => {
@@ -125,7 +123,6 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, on
                 const dy = Math.abs(point.clientY - interactionRef.current.startY);
                 if (dx > 3 || dy > 3) {
                     hasMovedRef.current = true;
-                    onSelect();
                 }
             }
 
@@ -215,7 +212,7 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, on
             document.removeEventListener('touchmove', handleMove);
             document.removeEventListener('touchend', handleEnd);
         };
-    }, [note, onUpdate, containerRef, onSelect]);
+    }, [note, onUpdate, containerRef]);
 
 
     const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -258,8 +255,18 @@ export const NoteItem: React.FC<NoteItemProps> = ({ note, onUpdate, onDelete, on
                     onChange={handleTextChange}
                     placeholder="Type your note..."
                     className="flex-grow w-full h-full bg-transparent border-0 focus-visible:ring-0 resize-none p-1 text-sm"
-                    onMouseDown={(e) => {onSelect(); e.stopPropagation();}}
-                    onTouchStart={(e) => {onSelect(); e.stopPropagation();}}
+                    onMouseDown={(e) => {
+                        if (!isSelected) {
+                          onClick(e as unknown as React.MouseEvent<HTMLDivElement>);
+                        }
+                        e.stopPropagation();
+                    }}
+                    onTouchStart={(e) => {
+                        if (!isSelected) {
+                            onClick(e as unknown as React.MouseEvent<HTMLDivElement>);
+                        }
+                        e.stopPropagation();
+                    }}
                 />
             </div>
             {isSelected && (
