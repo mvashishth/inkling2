@@ -97,38 +97,53 @@ export default function Home() {
 
   const renderPage = async (
     pageNum: number,
-    doc: pdfjsLib.PDFDocumentProxy,
-    dimensions: { width: number, height: number }
+    doc: pdfjsLib.PDFDocumentProxy
   ) => {
     setIsChangingPage(true);
+    const canvasDimensions = canvasRef.current?.getDimensions();
+
+    if (!canvasDimensions || canvasDimensions.width === 0 || canvasDimensions.height === 0) {
+      toast({
+        title: "Canvas not ready",
+        description: "The drawing canvas is not yet available to render the PDF.",
+        variant: "destructive",
+      });
+      setIsChangingPage(false);
+      return;
+    }
+
     try {
       const page = await doc.getPage(pageNum);
-      const pageViewport = page.getViewport({ scale: 2.0 });
+      const unscaledViewport = page.getViewport({ scale: 1.0 });
 
-      // Create a canvas that will hold the centered page
+      const scale = Math.min(
+        canvasDimensions.width / unscaledViewport.width,
+        canvasDimensions.height / unscaledViewport.height
+      );
+      const viewport = page.getViewport({ scale });
+
       const finalCanvas = document.createElement('canvas');
-      finalCanvas.width = dimensions.width;
-      finalCanvas.height = dimensions.height;
+      finalCanvas.width = canvasDimensions.width;
+      finalCanvas.height = canvasDimensions.height;
       const finalContext = finalCanvas.getContext('2d');
       if (!finalContext) return;
+      
       finalContext.fillStyle = 'white';
       finalContext.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
 
-      // Create a temporary canvas to render the actual page
       const pageCanvas = document.createElement('canvas');
-      pageCanvas.width = pageViewport.width;
-      pageCanvas.height = pageViewport.height;
+      pageCanvas.width = viewport.width;
+      pageCanvas.height = viewport.height;
       const pageContext = pageCanvas.getContext('2d');
       if (!pageContext) return;
 
       await page.render({
         canvasContext: pageContext,
-        viewport: pageViewport,
+        viewport: viewport,
       }).promise;
       
-      // Calculate offsets to center the page canvas on the final canvas
-      const offsetX = (dimensions.width - pageViewport.width) / 2;
-      const offsetY = (dimensions.height - pageViewport.height) / 2;
+      const offsetX = (canvasDimensions.width - viewport.width) / 2;
+      const offsetY = (canvasDimensions.height - viewport.height) / 2;
       finalContext.drawImage(pageCanvas, offsetX, offsetY);
 
       const dataUrl = finalCanvas.toDataURL('image/png');
@@ -164,21 +179,11 @@ export default function Home() {
       
       const pdf = await loadingTask.promise;
 
-      // Find max dimensions to create a consistent canvas size
-      let maxWidth = 0;
-      let maxHeight = 0;
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 2.0 });
-        if (viewport.width > maxWidth) maxWidth = viewport.width;
-        if (viewport.height > maxHeight) maxHeight = viewport.height;
-      }
-      
       setPdfDoc(pdf);
       setTotalPages(pdf.numPages);
       
-      canvasRef.current?.resetAndResize(maxWidth, maxHeight);
-      await renderPage(1, pdf, { width: maxWidth, height: maxHeight });
+      canvasRef.current?.clear();
+      await renderPage(1, pdf);
       setCurrentPage(1);
 
     } catch (error) {
@@ -201,11 +206,8 @@ export default function Home() {
     if (!pdfDoc) return;
     const newPage = currentPage + delta;
     if (newPage > 0 && newPage <= totalPages) {
-      const dimensions = canvasRef.current?.getDimensions();
-      if(dimensions) {
-        await renderPage(newPage, pdfDoc, dimensions);
-        setCurrentPage(newPage);
-      }
+      await renderPage(newPage, pdfDoc);
+      setCurrentPage(newPage);
     }
   };
 

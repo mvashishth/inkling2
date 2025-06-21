@@ -22,7 +22,6 @@ export interface DrawingCanvasRef {
   clear: () => void;
   undo: () => void;
   redo: () => void;
-  resetAndResize: (width: number, height: number) => void;
   switchPage: (pageNum: number, backgroundDataUrl: string) => void;
   getDimensions: () => { width: number; height: number } | undefined;
 }
@@ -106,7 +105,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
 
         bgContext.fillStyle = 'white';
         bgContext.fillRect(0, 0, backgroundCanvas.width, backgroundCanvas.height);
-        bgContext.drawImage(img, 0, 0, backgroundCanvas.width, backgroundCanvas.height);
+        bgContext.drawImage(img, 0, 0);
       }
       img.onerror = () => {
           const backgroundCanvas = backgroundCanvasRef.current;
@@ -337,16 +336,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
           pageHistoryIndexRef.current.set(page, newIndex);
           restoreState(page, newIndex);
           updateHistoryButtons(page);
-        }
-      },
-      resetAndResize: (width, height) => {
-        pageHistoryRef.current.clear();
-        pageHistoryIndexRef.current.clear();
-        currentPageRef.current = 1;
-        const container = containerRef.current;
-        if (container) {
-          container.style.width = `${width / (window.devicePixelRatio || 1)}px`;
-          container.style.height = `${height / (window.devicePixelRatio || 1)}px`;
         }
       },
       switchPage: (pageNum, backgroundDataUrl) => {
