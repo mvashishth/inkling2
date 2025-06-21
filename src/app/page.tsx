@@ -108,6 +108,7 @@ export default function Home() {
   const [originalPdfFile, setOriginalPdfFile] = React.useState<ArrayBuffer | null>(null);
   const [originalPdfFileName, setOriginalPdfFileName] = React.useState<string | null>(null);
   const [annotationDataToLoad, setAnnotationDataToLoad] = React.useState<AnnotationData | null>(null);
+  const [pinupAnnotationDataToLoad, setPinupAnnotationDataToLoad] = React.useState<AnnotationData | null>(null);
 
   const pdfCanvasRef = React.useRef<DrawingCanvasRef>(null);
   const pinupCanvasRef = React.useRef<DrawingCanvasRef>(null);
@@ -151,7 +152,7 @@ export default function Home() {
   const activeCanvasRef = activeCanvas === 'pdf' ? pdfCanvasRef : pinupCanvasRef;
   
   const pdfTool = ['draw', 'erase', 'highlight', 'snapshot', 'inkling'].includes(tool || '') ? tool : null;
-  const pinupTool = ['note'].includes(tool || '') ? tool : null;
+  const pinupTool = ['draw', 'erase', 'highlight', 'note'].includes(tool || '') ? tool : null;
 
   const handleToolClick = (selectedTool: Tool) => {
     setTool((currentTool) => (currentTool === selectedTool ? null : selectedTool));
@@ -169,8 +170,8 @@ export default function Home() {
         });
         return;
     }
-    const annotationData = pdfCanvasRef.current?.getAnnotationData();
-    if (!annotationData) return;
+    const pdfAnnotationData = pdfCanvasRef.current?.getAnnotationData();
+    const pinupAnnotationData = pinupCanvasRef.current?.getAnnotationData();
     
     const defaultFileName = originalPdfFileName ? originalPdfFileName.replace(/\.pdf$/i, '') : 'annotated-project';
     const chosenFileName = window.prompt("Enter filename for your project:", defaultFileName);
@@ -184,7 +185,8 @@ export default function Home() {
     const projectData = {
         originalPdfFileName: originalPdfFileName,
         pdfDataBase64: pdfDataBase64,
-        annotations: annotationData,
+        pdfAnnotations: pdfAnnotationData,
+        pinupAnnotations: pinupAnnotationData,
         snapshots: snapshots,
         inklings: inklings,
         notes: notes,
@@ -301,7 +303,7 @@ export default function Home() {
       reader.onload = async (event) => {
           try {
               const projectData = JSON.parse(event.target?.result as string);
-              if (projectData.fileType === 'inkling-project' && projectData.pdfDataBase64 && projectData.annotations) {
+              if (projectData.fileType === 'inkling-project' && projectData.pdfDataBase64) {
                   const byteCharacters = window.atob(projectData.pdfDataBase64);
                   const byteNumbers = new Array(byteCharacters.length);
                   for (let i = 0; i < byteCharacters.length; i++) {
@@ -312,7 +314,8 @@ export default function Home() {
                   
                   setOriginalPdfFile(arrayBuffer.slice(0));
                   setOriginalPdfFileName(projectData.originalPdfFileName || file.name.replace(/\.json$/i, ".pdf"));
-                  setAnnotationDataToLoad(projectData.annotations);
+                  setAnnotationDataToLoad(projectData.pdfAnnotations || null);
+                  setPinupAnnotationDataToLoad(projectData.pinupAnnotations || null);
                   setSnapshots(projectData.snapshots || []);
                   setInklings(projectData.inklings || []);
                   setNotes(projectData.notes || []);
@@ -336,6 +339,7 @@ export default function Home() {
         setOriginalPdfFile(arrayBuffer.slice(0));
         setOriginalPdfFileName(file.name);
         setAnnotationDataToLoad(null);
+        setPinupAnnotationDataToLoad(null);
         setSnapshots([]);
         setInklings([]);
         setNotes([]);
@@ -404,6 +408,7 @@ export default function Home() {
     setOriginalPdfFile(null);
     setOriginalPdfFileName(null);
     setAnnotationDataToLoad(null);
+    setPinupAnnotationDataToLoad(null);
 
     // Clear Pinup board
     pinupCanvasRef.current?.clear();
@@ -894,7 +899,7 @@ export default function Home() {
             </div>
         </aside>
 
-        {tool && ['draw', 'erase', 'highlight'].includes(tool) && activeCanvas === 'pdf' && (
+        {(tool && ['draw', 'erase', 'highlight'].includes(tool)) && (
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-x-8 px-4 py-2 border-b bg-card shadow-sm z-10">
                 <div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground whitespace-nowrap">
@@ -1104,7 +1109,7 @@ export default function Home() {
                         highlighterSize={highlighterSize}
                         highlighterColor={highlighterColor}
                         onHistoryChange={handlePinupHistoryChange}
-                        initialAnnotations={null}
+                        initialAnnotations={pinupAnnotationDataToLoad}
                         toast={toast}
                         onNoteCreate={handleNoteCreate}
                     />
