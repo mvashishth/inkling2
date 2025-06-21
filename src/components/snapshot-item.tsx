@@ -123,6 +123,11 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
                 "absolute border-2 bg-cover bg-center shadow-lg cursor-grab active:cursor-grabbing",
                 isSelected ? "border-blue-500 ring-2 ring-blue-500 z-10" : "border-transparent hover:border-blue-500/50"
             )}
+            onMouseDownCapture={(e) => {
+                // This stops the event from reaching the parent pinup board's capture listener,
+                // which was causing a premature re-render and breaking the drag logic.
+                e.stopPropagation();
+            }}
             onMouseDown={(e) => handleInteractionStart(e, 'drag')}
             onClickCapture={handleClickCapture}
             data-ai-hint="pdf snapshot"
