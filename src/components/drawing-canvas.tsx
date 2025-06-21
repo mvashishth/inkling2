@@ -36,7 +36,7 @@ interface DrawingCanvasProps {
 
 export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
   ({ pages, tool, penColor, penSize, eraserSize, highlighterSize, onHistoryChange }, ref) => {
-    const [isDrawing, setIsDrawing] = useState(false);
+    const isDrawingRef = useRef(false);
     const hasMovedRef = useRef(false);
 
     const pageContainerRef = useRef<HTMLDivElement>(null);
@@ -114,7 +114,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       updateHistoryButtons(pageIndex);
 
       hasMovedRef.current = false;
-      setIsDrawing(true);
+      isDrawingRef.current = true;
       
       const point = getPoint(e, pageIndex);
       lastPointRef.current = point;
@@ -143,11 +143,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     };
 
     const draw = (e: React.MouseEvent | React.TouchEvent) => {
-      // For mouse events, check if the primary button is pressed.
       if ('buttons' in e && e.buttons !== 1) {
-        // If we are in a drawing state, but the button is not pressed, it means
-        // we missed a mouseup event. Stop drawing to correct the state.
-        if (isDrawing) {
+        if (isDrawingRef.current) {
           stopDrawing();
         }
         return;
@@ -155,7 +152,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
       
       const pageIndex = lastActivePageRef.current;
       const context = contextRefs.current[pageIndex];
-      if (!isDrawing || !context || !lastPointRef.current) return;
+      if (!isDrawingRef.current || !context || !lastPointRef.current) return;
       e.preventDefault();
       hasMovedRef.current = true;
       const currentPoint = getPoint(e, pageIndex);
@@ -177,7 +174,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
     const stopDrawing = () => {
       const pageIndex = lastActivePageRef.current;
       const context = contextRefs.current[pageIndex];
-      if (!isDrawing || !context) return;
+      if (!isDrawingRef.current || !context) return;
       
       if (!hasMovedRef.current && lastPointRef.current) {
         const point = lastPointRef.current;
@@ -192,7 +189,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
         context.fill();
       }
 
-      setIsDrawing(false);
+      isDrawingRef.current = false;
       lastPointRef.current = null;
       preStrokeImageDataRef.current = null;
       currentPathRef.current = null;
