@@ -427,7 +427,7 @@ export default function Home() {
     setSelectedNote(null);
     const pageElement = pdfCanvasRef.current?.getPageElement(snapshot.sourcePage);
     if (pageElement) {
-      pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      pageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }, [pendingInkling, toast]);
 
@@ -479,7 +479,7 @@ export default function Home() {
     if (endpoint === 'pinup') {
       const pageElement = pdfCanvasRef.current?.getPageElement(inkling.pdfPoint.pageIndex);
       if (pageElement) {
-        pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        pageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     } else { // 'pdf' endpoint clicked, go to pinup item
       const { targetId, targetType } = inkling.pinupPoint;
@@ -490,7 +490,7 @@ export default function Home() {
       const pinupElement = pinupContainerRef.current?.querySelector(selector) as HTMLDivElement;
       
       if (pinupElement) {
-        pinupElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        pinupElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         if (targetType === 'snapshot') {
           setSelectedSnapshot(targetId);
           setSelectedNote(null);
