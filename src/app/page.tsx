@@ -99,7 +99,7 @@ export default function Home() {
     const annotationData = canvasRef.current?.getAnnotationData();
     if (!annotationData) return;
     
-    const pdfDataBase64 = arrayBufferToBase64(originalPdfFile);
+    const pdfDataBase64 = arrayBufferToBase64(originalPdfFile.slice(0));
 
     const projectData = {
         originalPdfFileName: originalPdfFileName,
@@ -298,56 +298,6 @@ export default function Home() {
                     <TooltipContent side="bottom"><p>Highlight</p></TooltipContent>
                   </Tooltip>
                 </div>
-                
-                {tool && (
-                  <div className="flex flex-row items-center p-1.5 rounded-lg bg-muted/50 gap-4">
-                      <div className="flex items-center gap-2 px-1">
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">{tool === 'erase' ? 'Size' : 'Width'}: {sliderValue}</span>
-                          <Slider
-                          value={[sliderValue]}
-                          max={sliderMax}
-                          min={sliderMin}
-                          step={1}
-                          onValueChange={handleSliderChange}
-                          className="w-24"
-                          />
-                      </div>
-      
-                      {(tool === 'draw' || tool === 'highlight') && (
-                          <>
-                          <Separator orientation="vertical" className="h-6 bg-muted-foreground/20" />
-                          <div className="flex flex-row flex-wrap justify-center gap-2">
-                              {COLORS.map((color) => (
-                              <Tooltip key={color}>
-                                  <TooltipTrigger asChild>
-                                  <button
-                                      onClick={() => {
-                                        if (tool === 'draw') {
-                                          setPenColor(color);
-                                        } else if (tool === 'highlight') {
-                                          setHighlighterColor(color);
-                                        }
-                                      }}
-                                      className={cn(
-                                      'h-6 w-6 rounded-full border-2 transition-all hover:scale-110',
-                                      (tool === 'draw' && penColor === color) || (tool === 'highlight' && highlighterColor === color)
-                                          ? 'border-primary'
-                                          : 'border-muted-foreground/20'
-                                      )}
-                                      style={{ backgroundColor: color }}
-                                      aria-label={`Set color to ${color}`}
-                                  />
-                                  </TooltipTrigger>
-                                  <TooltipContent side="bottom">
-                                  <p>{color.toUpperCase()}</p>
-                                  </TooltipContent>
-                              </Tooltip>
-                              ))}
-                          </div>
-                          </>
-                      )}
-                  </div>
-                )}
             </div>
 
             <div className="flex items-center gap-x-2 sm:gap-x-4">
@@ -408,6 +358,64 @@ export default function Home() {
                 </div>
             </div>
         </aside>
+
+        {tool && (
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-x-8 px-4 py-2 border-b bg-card shadow-sm z-10">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">
+                        {tool === 'erase' ? 'Size' : 'Width'}:
+                    </span>
+                    <Slider
+                        value={[sliderValue]}
+                        max={sliderMax}
+                        min={sliderMin}
+                        step={1}
+                        onValueChange={handleSliderChange}
+                        className="w-32"
+                    />
+                    <span className="text-sm font-mono w-8 text-center bg-muted/50 rounded-md py-0.5">
+                        {sliderValue}
+                    </span>
+                </div>
+
+                {(tool === 'draw' || tool === 'highlight') && (
+                    <>
+                        <Separator orientation="vertical" className="h-8 hidden sm:block" />
+                        <div className="flex items-center gap-3">
+                            <span className="text-sm text-muted-foreground">Color:</span>
+                            <div className="flex flex-row flex-wrap justify-center gap-2">
+                                {COLORS.map((color) => (
+                                    <Tooltip key={color}>
+                                        <TooltipTrigger asChild>
+                                            <button
+                                                onClick={() => {
+                                                    if (tool === 'draw') {
+                                                        setPenColor(color);
+                                                    } else if (tool === 'highlight') {
+                                                        setHighlighterColor(color);
+                                                    }
+                                                }}
+                                                className={cn(
+                                                    'h-6 w-6 rounded-full border-2 transition-all hover:scale-110',
+                                                    (tool === 'draw' && penColor === color) || (tool === 'highlight' && highlighterColor === color)
+                                                        ? 'border-primary'
+                                                        : 'border-muted-foreground/20'
+                                                )}
+                                                style={{ backgroundColor: color }}
+                                                aria-label={`Set color to ${color}`}
+                                            />
+                                        </TooltipTrigger>
+                                        <TooltipContent side="bottom">
+                                            <p>{color.toUpperCase()}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+        )}
 
         <main className="flex-1 relative bg-background overflow-auto">
           {isPdfLoading && (
