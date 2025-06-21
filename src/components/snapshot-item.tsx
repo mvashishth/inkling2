@@ -27,6 +27,7 @@ interface SnapshotItemProps {
 
 export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, onDelete, onClick, isSelected, onSelect }) => {
     const [interaction, setInteraction] = useState<'drag' | 'resize' | null>(null);
+    const hasMovedRef = useRef(false);
     const interactionStartRef = useRef<{
         clientX: number;
         clientY: number;
@@ -36,30 +37,29 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
         snapshotHeight: number;
     } | null>(null);
 
-    const hasMovedRef = useRef(false);
-
     useEffect(() => {
-        if (!interaction) {
-            return;
-        }
+        if (!interaction) return;
 
         const handleMouseMove = (e: MouseEvent) => {
             if (!interactionStartRef.current) return;
-
             e.preventDefault();
+
             if (!hasMovedRef.current) {
-                hasMovedRef.current = true;
+                const dx = e.clientX - interactionStartRef.current.clientX;
+                const dy = e.clientY - interactionStartRef.current.clientY;
+                if (Math.sqrt(dx * dx + dy * dy) > 3) {
+                    hasMovedRef.current = true;
+                }
             }
+
+            if (!hasMovedRef.current) return;
 
             const { clientX, clientY, snapshotX, snapshotY, snapshotWidth, snapshotHeight } = interactionStartRef.current;
             const dx = e.clientX - clientX;
             const dy = e.clientY - clientY;
 
             if (interaction === 'drag') {
-                onUpdate(snapshot.id, {
-                    x: snapshotX + dx,
-                    y: snapshotY + dy,
-                });
+                onUpdate(snapshot.id, { x: snapshotX + dx, y: snapshotY + dy });
             } else if (interaction === 'resize') {
                 onUpdate(snapshot.id, {
                     width: Math.max(50, snapshotWidth + dx),
@@ -68,26 +68,28 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             }
         };
 
-        const handleMouseUp = (e: MouseEvent) => {
-            e.preventDefault();
+        const handleMouseUp = () => {
+            if (!hasMovedRef.current) {
+                onSelect();
+                onClick();
+            }
             setInteraction(null);
             interactionStartRef.current = null;
         };
-
+        
         window.addEventListener('mousemove', handleMouseMove);
-        window.addEventListener('mouseup', handleMouseUp);
+        window.addEventListener('mouseup', handleMouseUp, { once: true });
 
         return () => {
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
-    }, [interaction, onUpdate, snapshot.id]);
+    }, [interaction, onUpdate, onClick, onSelect, snapshot.id]);
 
     const handleInteractionStart = (e: React.MouseEvent, type: 'drag' | 'resize') => {
         e.preventDefault();
         e.stopPropagation();
         
-        onSelect();
         hasMovedRef.current = false;
         setInteraction(type);
 
@@ -100,15 +102,6 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
             snapshotHeight: snapshot.height,
         };
     };
-
-    const handleClickCapture = (e: React.MouseEvent) => {
-         e.stopPropagation();
-         setTimeout(() => {
-            if (!hasMovedRef.current) {
-                onClick();
-            }
-        }, 0);
-    }
 
     return (
         <div
@@ -123,13 +116,7 @@ export const SnapshotItem: React.FC<SnapshotItemProps> = ({ snapshot, onUpdate, 
                 "absolute border-2 bg-cover bg-center shadow-lg cursor-grab active:cursor-grabbing",
                 isSelected ? "border-blue-500 ring-2 ring-blue-500 z-10" : "border-transparent hover:border-blue-500/50"
             )}
-            onMouseDownCapture={(e) => {
-                // This stops the event from reaching the parent pinup board's capture listener,
-                // which was causing a premature re-render and breaking the drag logic.
-                e.stopPropagation();
-            }}
             onMouseDown={(e) => handleInteractionStart(e, 'drag')}
-            onClickCapture={handleClickCapture}
             data-ai-hint="pdf snapshot"
         >
             {isSelected && (
