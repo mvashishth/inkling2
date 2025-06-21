@@ -248,6 +248,7 @@ export default function Home() {
     setIsPdfLoading(true);
     setPdfLoadProgress(0);
     setPageImages([]);
+
     pdfCanvasRef.current?.clear();
     pinupCanvasRef.current?.clear();
 
@@ -343,7 +344,7 @@ export default function Home() {
         setOriginalPdfFileName(file.name);
         setAnnotationDataToLoad(null);
         setPinupAnnotationDataToLoad(null);
-        await loadPdf(arrayBuffer.slice(0));
+        await loadPdf(arrayBuffer.slice(0), false);
     } else {
         toast({
             title: "Unsupported File Type",
