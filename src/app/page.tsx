@@ -779,7 +779,7 @@ export default function Home() {
         <main ref={mainContainerRef} className="flex-1 flex flex-row overflow-hidden relative">
           <div 
             ref={pdfContainerRef}
-            className="w-3/5 flex flex-col"
+            className="w-2/5 flex flex-col"
             onMouseDownCapture={() => {
               setActiveCanvas('pdf');
               setSelectedSnapshot(null);
@@ -821,7 +821,7 @@ export default function Home() {
             </div>
           </div>
           <Separator orientation="vertical" className="h-full" />
-          <div className="w-2/5 flex flex-col">
+          <div className="w-3/5 flex flex-col">
               <header className="p-2 text-center font-semibold bg-card border-b">Pinup Board</header>
               <div 
                 className="flex-1 relative bg-background overflow-auto"
