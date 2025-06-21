@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from 'react';
@@ -36,12 +35,13 @@ if (typeof window !== 'undefined') {
 
 type Tool = 'draw' | 'erase' | 'highlight';
 const COLORS = ['#1A1A1A', '#EF4444', '#3B82F6', '#22C55E', '#EAB308'];
-const HIGHLIGHTER_COLOR = '#22C55E'; // Use a specific color for the highlighter
+const DEFAULT_HIGHLIGHTER_COLOR = '#EAB308'; // A bright yellow
 
 export default function Home() {
   const [tool, setTool] = React.useState<Tool | null>(null);
   const [penSize, setPenSize] = React.useState(5);
   const [penColor, setPenColor] = React.useState(COLORS[0]);
+  const [highlighterColor, setHighlighterColor] = React.useState(DEFAULT_HIGHLIGHTER_COLOR);
   const [eraserSize, setEraserSize] = React.useState(20);
   const [highlighterSize, setHighlighterSize] = React.useState(20);
   const [canUndo, setCanUndo] = React.useState(false);
@@ -216,7 +216,7 @@ export default function Home() {
                           />
                       </div>
       
-                      {tool === 'draw' && (
+                      {(tool === 'draw' || tool === 'highlight') && (
                           <>
                           <Separator orientation="vertical" className="h-6 bg-muted-foreground/20" />
                           <div className="flex flex-row flex-wrap justify-center gap-2">
@@ -224,15 +224,21 @@ export default function Home() {
                               <Tooltip key={color}>
                                   <TooltipTrigger asChild>
                                   <button
-                                      onClick={() => setPenColor(color)}
+                                      onClick={() => {
+                                        if (tool === 'draw') {
+                                          setPenColor(color);
+                                        } else if (tool === 'highlight') {
+                                          setHighlighterColor(color);
+                                        }
+                                      }}
                                       className={cn(
                                       'h-6 w-6 rounded-full border-2 transition-all hover:scale-110',
-                                      penColor === color
+                                      (tool === 'draw' && penColor === color) || (tool === 'highlight' && highlighterColor === color)
                                           ? 'border-primary'
                                           : 'border-muted-foreground/20'
                                       )}
                                       style={{ backgroundColor: color }}
-                                      aria-label={`Set pen color to ${color}`}
+                                      aria-label={`Set color to ${color}`}
                                   />
                                   </TooltipTrigger>
                                   <TooltipContent side="bottom">
@@ -321,7 +327,7 @@ export default function Home() {
             penSize={penSize}
             eraserSize={eraserSize}
             highlighterSize={highlighterSize}
-            highlighterColor={HIGHLIGHTER_COLOR}
+            highlighterColor={highlighterColor}
             onHistoryChange={handleHistoryChange}
           />
         </main>
