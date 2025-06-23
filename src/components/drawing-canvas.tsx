@@ -339,30 +339,40 @@ export const DrawingCanvas = forwardRef<DrawingCanvasRef, DrawingCanvasProps>(
           const drawingCanvas = drawingCanvasRefs.current[pageIndex];
 
           if (pageImageElement && drawingCanvas) {
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = width;
-            tempCanvas.height = height;
-            const tempCtx = tempCanvas.getContext('2d');
-            if (tempCtx) {
-              const { naturalWidth, naturalHeight } = pageImageElement;
-              const { width: renderWidth, height: renderHeight } = pageImageElement.getBoundingClientRect();
-              const scaleX = naturalWidth / renderWidth;
-              const scaleY = naturalHeight / renderHeight;
-              
-              tempCtx.drawImage(
-                pageImageElement,
-                x * scaleX, y * scaleY, width * scaleX, height * scaleY,
-                0, 0, width, height
-              );
-              
-              tempCtx.drawImage(
-                drawingCanvas,
-                x, y, width, height,
-                0, 0, width, height
-              );
+            const { naturalWidth, naturalHeight } = pageImageElement;
+            const { width: renderWidth, height: renderHeight } = pageImageElement.getBoundingClientRect();
+            // Fallback to 1 to avoid division by zero if element is not rendered yet
+            const scaleX = naturalWidth / (renderWidth || 1);
+            const scaleY = naturalHeight / (renderHeight || 1);
 
-              const dataUrl = tempCanvas.toDataURL('image/png');
-              onSnapshot(dataUrl, pageIndex, { x, y, width, height });
+            const snapshotWidth = width * scaleX;
+            const snapshotHeight = height * scaleY;
+            
+            // Prevent creating empty or invalid canvas
+            if (snapshotWidth > 0 && snapshotHeight > 0) {
+              const tempCanvas = document.createElement('canvas');
+              tempCanvas.width = snapshotWidth;
+              tempCanvas.height = snapshotHeight;
+              const tempCtx = tempCanvas.getContext('2d');
+
+              if (tempCtx) {
+                // Draw the high-resolution page content
+                tempCtx.drawImage(
+                  pageImageElement,
+                  x * scaleX, y * scaleY, snapshotWidth, snapshotHeight,
+                  0, 0, snapshotWidth, snapshotHeight
+                );
+                
+                // Draw the annotations on top, scaled up
+                tempCtx.drawImage(
+                  drawingCanvas,
+                  x, y, width, height,
+                  0, 0, snapshotWidth, snapshotHeight
+                );
+
+                const dataUrl = tempCanvas.toDataURL('image/png');
+                onSnapshot(dataUrl, pageIndex, { x, y, width, height });
+              }
             }
           }
         }
